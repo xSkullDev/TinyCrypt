@@ -178,6 +178,19 @@ document.getElementById('encryptButton').addEventListener('click', async functio
                 ctx.putImageData(stego, 0, 0);
                 document.getElementById('encryptedImage').src = canvas.toDataURL();
                 document.getElementById('originalImage').src = img.src;
+                    // compute and show diagram/heatmap/histogram
+                    try {
+                        // we need original imageData again: draw original into a separate canvas
+                        const origCanvas = document.createElement('canvas');
+                        origCanvas.width = img.width;
+                        origCanvas.height = img.height;
+                        const octx = origCanvas.getContext('2d');
+                        octx.drawImage(img, 0, 0);
+                        const origImageData = octx.getImageData(0, 0, origCanvas.width, origCanvas.height);
+                        computeDiffAndShowDiagram(origImageData, stego);
+                    } catch (e) {
+                        console.warn('Diagram generation failed:', e);
+                    }
                 alert('Pesan berhasil disisipkan ke gambar.');
             } catch (e) {
                 alert('Error: ' + e.message);
@@ -220,4 +233,97 @@ document.getElementById('decryptButton').addEventListener('click', function() {
     };
     reader.readAsDataURL(imageFile);
 });
+
+// --- Diagram / Diff utilities ---
+function computeDiffAndShowDiagram(origImageData, stegoImageData) {
+    const w = origImageData.width;
+    const h = origImageData.height;
+    const orig = origImageData.data;
+    const st = stegoImageData.data;
+    const diff = new Uint8ClampedArray(w * h); // store intensity diff 0-255
+    const hist = new Uint32Array(256);
+    for (let px = 0; px < w * h; px++) {
+        const oi = px * 4;
+        // compute grayscale absolute diff per pixel using RGB channels average
+        const origGray = Math.round((orig[oi] + orig[oi+1] + orig[oi+2]) / 3);
+        const stGray = Math.round((st[oi] + st[oi+1] + st[oi+2]) / 3);
+        const d = Math.abs(origGray - stGray);
+        diff[px] = d;
+        hist[d]++;
+    }
+
+    drawHeatmap(diff, w, h);
+    drawHistogram(hist);
+    renderFlowchart();
+}
+
+function drawHeatmap(diffArray, w, h) {
+    const canvas = document.getElementById('diffHeatmap');
+    // set canvas pixel size to image size but constrained by CSS width
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    const imgData = ctx.createImageData(w, h);
+    for (let i = 0; i < diffArray.length; i++) {
+        const d = diffArray[i];
+        const idx = i * 4;
+        // map diff to red heatmap: higher diff -> more red
+        imgData.data[idx] = d; // R
+        imgData.data[idx+1] = 0; // G
+        imgData.data[idx+2] = 0; // B
+        imgData.data[idx+3] = 255; // A
+    }
+    ctx.putImageData(imgData, 0, 0);
+    // scale down visually via CSS (browser will handle scaling)
+}
+
+function drawHistogram(hist) {
+    const canvas = document.getElementById('diffHistogram');
+    const ctx = canvas.getContext('2d');
+    // set pixel width equal to 256 for clear bins
+    canvas.width = 256;
+    canvas.height = 80;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const max = Math.max(...hist);
+    for (let i = 0; i < 256; i++) {
+        const hgt = Math.round((hist[i] / (max || 1)) * canvas.height);
+        ctx.fillStyle = '#e74c3c';
+        ctx.fillRect(i, canvas.height - hgt, 1, hgt);
+    }
+}
+
+function renderFlowchart() {
+    const container = document.getElementById('flowchart');
+    // simple SVG flowchart: Original -> TEA Encrypt -> LSB Embed -> Stego
+    const svg = `
+    <svg viewBox="0 0 800 120" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <style>
+          .box { fill:#fff; stroke:#333; stroke-width:1; rx:6; }
+          .label { font-family: Arial, sans-serif; font-size:12px; }
+          .arrow { stroke:#333; stroke-width:2; marker-end: url(#arrowhead); }
+        </style>
+        <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+          <polygon points="0 0, 10 3.5, 0 7" fill="#333" />
+        </marker>
+      </defs>
+      <rect x="20" y="20" width="140" height="40" class="box" />
+      <text x="90" y="45" text-anchor="middle" class="label">Gambar Asli</text>
+      <rect x="220" y="20" width="140" height="40" class="box" />
+      <text x="290" y="45" text-anchor="middle" class="label">TEA Enkripsi</text>
+      <rect x="420" y="20" width="140" height="40" class="box" />
+      <text x="490" y="45" text-anchor="middle" class="label">LSB Embed</text>
+      <rect x="620" y="20" width="140" height="40" class="box" />
+      <text x="690" y="45" text-anchor="middle" class="label">Gambar Stego</text>
+
+      <line x1="160" y1="40" x2="220" y2="40" class="arrow" />
+      <line x1="360" y1="40" x2="420" y2="40" class="arrow" />
+      <line x1="560" y1="40" x2="620" y2="40" class="arrow" />
+
+      <!-- small notes -->
+      <text x="290" y="65" text-anchor="middle" class="label">Pesan -> PKCS7 -> TEA (blok 64-bit)</text>
+      <text x="490" y="65" text-anchor="middle" class="label">Ciphertext (base64) disisipkan ke LSB</text>
+    </svg>`;
+    container.innerHTML = svg;
+}
 
