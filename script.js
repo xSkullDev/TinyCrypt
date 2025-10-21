@@ -197,9 +197,12 @@ document.getElementById('encryptButton').addEventListener('click', async functio
                         // enable download buttons
                         document.getElementById('downloadStego').disabled = false;
                         document.getElementById('downloadHeatmap').disabled = false;
+                        document.getElementById('downloadReport').disabled = false;
                         // show stats
                         const statsEl = document.getElementById('diffStats');
                         statsEl.innerHTML = `Perubahan: <strong>${stats.changedPixels}</strong> pixel (${(stats.percentChanged*100).toFixed(3)}%) • Mean diff: <strong>${stats.meanDiff.toFixed(3)}</strong>`;
+                        // store the last stats for download
+                        window.__tinycrypt_last_stats = Object.assign({}, stats, { imageWidth: canvas.width, imageHeight: canvas.height });
                     } catch (e) {
                         console.warn('Diagram generation failed:', e);
                     }
@@ -230,6 +233,19 @@ document.getElementById('downloadHeatmap').addEventListener('click', function() 
     a.href = url;
     a.download = 'heatmap.png';
     a.click();
+});
+
+document.getElementById('downloadReport').addEventListener('click', function() {
+    const stats = window.__tinycrypt_last_stats;
+    if (!stats) { alert('Tidak ada laporan tersedia. Silakan lakukan enkripsi terlebih dahulu.'); return; }
+    const payload = JSON.stringify(stats, null, 2);
+    const blob = new Blob([payload], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'stego_report.json';
+    a.click();
+    URL.revokeObjectURL(url);
 });
 
 document.getElementById('decryptButton').addEventListener('click', function() {
@@ -276,6 +292,8 @@ function computeDiffAndShowDiagram(origImageData, stegoImageData) {
     const hist = new Uint32Array(256);
     let sumDiff = 0;
     let changed = 0;
+    let sumDiffR = 0, sumDiffG = 0, sumDiffB = 0;
+    let changedR = 0, changedG = 0, changedB = 0;
     for (let px = 0; px < w * h; px++) {
         const oi = px * 4;
         // compute grayscale absolute diff per pixel using RGB channels average
@@ -286,6 +304,13 @@ function computeDiffAndShowDiagram(origImageData, stegoImageData) {
         hist[d]++;
         sumDiff += d;
         if (d !== 0) changed++;
+        // per-channel diffs
+        const dr = Math.abs(orig[oi] - st[oi]);
+        const dg = Math.abs(orig[oi+1] - st[oi+1]);
+        const db = Math.abs(orig[oi+2] - st[oi+2]);
+        sumDiffR += dr; if (dr !== 0) changedR++;
+        sumDiffG += dg; if (dg !== 0) changedG++;
+        sumDiffB += db; if (db !== 0) changedB++;
     }
 
     drawHeatmap(diff, w, h);
@@ -293,7 +318,19 @@ function computeDiffAndShowDiagram(origImageData, stegoImageData) {
     renderFlowchart();
     const meanDiff = sumDiff / (w * h);
     const percentChanged = changed / (w * h);
-    return { changedPixels: changed, percentChanged, meanDiff };
+    const meanR = sumDiffR / (w * h);
+    const meanG = sumDiffG / (w * h);
+    const meanB = sumDiffB / (w * h);
+    return {
+        changedPixels: changed,
+        percentChanged,
+        meanDiff,
+        perChannel: {
+            R: { changed: changedR, mean: meanR },
+            G: { changed: changedG, mean: meanG },
+            B: { changed: changedB, mean: meanB }
+        }
+    };
 }
 
 function drawHeatmap(diffArray, w, h) {
