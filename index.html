@@ -1,12 +1,25 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="id">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+    <title>Steganografi Gambar</title>
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <h1>Hello World</h1>
-    <p>tes</p>
+    <div class="container">
+        <h1>Steganografi Gambar</h1>
+        <input type="file" id="imageInput" accept="image/*">
+        <textarea id="messageInput" placeholder="Masukkan pesan di sini"></textarea>
+        <button id="encryptButton">Enkripsi</button>
+        <button id="decryptButton">Dekripsi</button>
+        <div id="output">
+            <h2>Hasil</h2>
+            <img id="originalImage" alt="Gambar Asli">
+            <img id="encryptedImage" alt="Gambar Enkripsi">
+            <img id="decryptedImage" alt="Gambar Dekripsi">
+        </div>
+    </div>
+    <script src="script.js"></script>
 </body>
 </html>
