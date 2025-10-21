@@ -6,7 +6,7 @@ body {
 }
 
 .container {
-    max-width: 600px;
+    max-width: 980px;
     margin: auto;
     background: white;
     padding: 20px;
@@ -18,25 +18,49 @@ h1, h2 {
     text-align: center;
 }
 
-input[type="file"], textarea {
-    width: 100%;
-    margin: 10px 0;
+.controls label {
+    display:block;
+    margin-top:10px;
+    font-weight:600;
 }
+
+input[type="file"], textarea, input[type="text"] {
+    width: 100%;
+    margin: 8px 0 6px 0;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    box-sizing: border-box;
+}
+
+.btn-row { display:flex; gap:12px; }
+.btn-row button { flex:1 }
+
+button { margin-top:8px }
 
 button {
-    width: 100%;
-    padding: 10px;
-    margin: 5px 0;
-    background-color: #28a745;
+    padding: 10px 14px;
+    background-color: #2563eb;
     color: white;
     border: none;
-    border-radius: 5px;
+    border-radius: 6px;
     cursor: pointer;
+    font-weight:600;
 }
 
-button:hover {
-    background-color: #218838;
+button.secondary {
+    background: #6b7280;
 }
+
+button:hover { filter:brightness(0.95); }
+
+.download-row { display:flex; gap:8px; margin-top:8px }
+.download-row button { flex:1; background:#10b981 }
+
+.images { display:flex; gap:16px; margin-top:12px }
+.img-col { flex:1; text-align:center }
+.img-col h4 { margin:6px 0 }
+.img-col img { width:100%; max-height:320px; object-fit:contain; border:1px solid #eee; border-radius:6px }
 
 #output img {
     width: 100%;
@@ -44,9 +68,9 @@ button:hover {
 }
 
 #diagram {
-    margin-top: 10px;
+    margin-top: 18px;
     border-top: 1px solid #eee;
-    padding-top: 10px;
+    padding-top: 14px;
 }
 
 #diffHeatmap {

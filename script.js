@@ -178,7 +178,7 @@ document.getElementById('encryptButton').addEventListener('click', async functio
                 ctx.putImageData(stego, 0, 0);
                 document.getElementById('encryptedImage').src = canvas.toDataURL();
                 document.getElementById('originalImage').src = img.src;
-                    // compute and show diagram/heatmap/histogram
+                        // compute and show diagram/heatmap/histogram
                     try {
                         // we need original imageData again: draw original into a separate canvas
                         const origCanvas = document.createElement('canvas');
@@ -187,7 +187,19 @@ document.getElementById('encryptButton').addEventListener('click', async functio
                         const octx = origCanvas.getContext('2d');
                         octx.drawImage(img, 0, 0);
                         const origImageData = octx.getImageData(0, 0, origCanvas.width, origCanvas.height);
-                        computeDiffAndShowDiagram(origImageData, stego);
+                        const stats = computeDiffAndShowDiagram(origImageData, stego);
+                        // prepare hidden canvas for download using stego data
+                        const hidden = document.getElementById('hiddenStegoCanvas');
+                        hidden.width = canvas.width;
+                        hidden.height = canvas.height;
+                        const hctx = hidden.getContext('2d');
+                        hctx.putImageData(stego, 0, 0);
+                        // enable download buttons
+                        document.getElementById('downloadStego').disabled = false;
+                        document.getElementById('downloadHeatmap').disabled = false;
+                        // show stats
+                        const statsEl = document.getElementById('diffStats');
+                        statsEl.innerHTML = `Perubahan: <strong>${stats.changedPixels}</strong> pixel (${(stats.percentChanged*100).toFixed(3)}%) • Mean diff: <strong>${stats.meanDiff.toFixed(3)}</strong>`;
                     } catch (e) {
                         console.warn('Diagram generation failed:', e);
                     }
@@ -198,6 +210,26 @@ document.getElementById('encryptButton').addEventListener('click', async functio
         };
     };
     reader.readAsDataURL(imageFile);
+});
+
+// Download button handlers
+document.getElementById('downloadStego').addEventListener('click', function() {
+    const hidden = document.getElementById('hiddenStegoCanvas');
+    const url = hidden.toDataURL('image/png');
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'stego.png';
+    a.click();
+});
+
+document.getElementById('downloadHeatmap').addEventListener('click', function() {
+    const canvas = document.getElementById('diffHeatmap');
+    // create a temp canvas scaled up for visibility if necessary
+    const url = canvas.toDataURL('image/png');
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'heatmap.png';
+    a.click();
 });
 
 document.getElementById('decryptButton').addEventListener('click', function() {
@@ -242,6 +274,8 @@ function computeDiffAndShowDiagram(origImageData, stegoImageData) {
     const st = stegoImageData.data;
     const diff = new Uint8ClampedArray(w * h); // store intensity diff 0-255
     const hist = new Uint32Array(256);
+    let sumDiff = 0;
+    let changed = 0;
     for (let px = 0; px < w * h; px++) {
         const oi = px * 4;
         // compute grayscale absolute diff per pixel using RGB channels average
@@ -250,11 +284,16 @@ function computeDiffAndShowDiagram(origImageData, stegoImageData) {
         const d = Math.abs(origGray - stGray);
         diff[px] = d;
         hist[d]++;
+        sumDiff += d;
+        if (d !== 0) changed++;
     }
 
     drawHeatmap(diff, w, h);
     drawHistogram(hist);
     renderFlowchart();
+    const meanDiff = sumDiff / (w * h);
+    const percentChanged = changed / (w * h);
+    return { changedPixels: changed, percentChanged, meanDiff };
 }
 
 function drawHeatmap(diffArray, w, h) {

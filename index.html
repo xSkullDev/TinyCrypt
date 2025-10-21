@@ -9,25 +9,47 @@
 <body>
     <div class="container">
         <h1>Steganografi Gambar</h1>
-        <input type="file" id="imageInput" accept="image/*">
-    <p>Masukkan Kunci (16 karakter):</p>
-    <input type="text" id="keyInput" maxlength="16" placeholder="16 karakter (mis. 1234567890123456)">
-        <p>Masukkan Pesan :</p>
-        <textarea id="messageInput"></textarea>
-        <button id="encryptButton">Enkripsi</button>
-        <button id="decryptButton">Dekripsi</button>
+        <div class="controls">
+            <input type="file" id="imageInput" accept="image/*">
+            <label for="keyInput">Masukkan Kunci (16 karakter)</label>
+            <input type="text" id="keyInput" maxlength="16" placeholder="16 karakter (mis. 1234567890123456)">
+            <label for="messageInput">Masukkan Pesan</label>
+            <textarea id="messageInput" rows="4"></textarea>
+            <div class="btn-row">
+                <button id="encryptButton">Enkripsi & Sisipkan</button>
+                <button id="decryptButton">Dekripsi</button>
+            </div>
+        </div>
         <div id="output">
             <h2>Hasil</h2>
-            <img id="originalImage" alt="Gambar Asli">
-            <img id="encryptedImage" alt="Gambar Enkripsi">
-            <img id="decryptedImage" alt="Gambar Dekripsi">
+            <div class="images">
+                <div class="img-col">
+                    <h4>Gambar Asli</h4>
+                    <img id="originalImage" alt="Gambar Asli">
+                </div>
+                <div class="img-col">
+                    <h4>Gambar Stego</h4>
+                    <img id="encryptedImage" alt="Gambar Enkripsi">
+                    <div class="download-row">
+                        <button id="downloadStego">Download Stego</button>
+                        <button id="downloadHeatmap">Download Heatmap</button>
+                    </div>
+                </div>
+                <div class="img-col">
+                    <h4>Gambar Dekripsi</h4>
+                    <img id="decryptedImage" alt="Gambar Dekripsi">
+                </div>
+            </div>
             <div id="diagram">
                 <h3>Perbandingan Gambar (Diagram Perbedaan)</h3>
                 <canvas id="diffHeatmap" style="display:block; width:100%;"></canvas>
                 <canvas id="diffHistogram" style="display:block; width:100%; height:80px; margin-top:8px;"></canvas>
+                <div id="diffStats" style="margin-top:8px; color:#333;"></div>
                 <div id="flowchart" style="margin-top:12px;"></div>
             </div>
         </div>
+        <!-- hidden canvas used to export stego image at full resolution -->
+        <canvas id="hiddenStegoCanvas" style="display:none;"></canvas>
     </div>
     <script src="script.js"></script>
 </body>
