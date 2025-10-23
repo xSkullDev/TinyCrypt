@@ -177,7 +177,12 @@ document.getElementById('encryptButton').addEventListener('click', async functio
                 const stego = lsbEmbed(imageData, payload);
                 ctx.putImageData(stego, 0, 0);
                 document.getElementById('encryptedImage').src = canvas.toDataURL();
+                const encDataUrl = canvas.toDataURL('image/png');
+                document.getElementById('encryptedImage').src = encDataUrl;
                 document.getElementById('originalImage').src = img.src;
+                // fill metadata for original and encrypted
+                setImageMeta('metaOriginal', img.width, img.height, dataUrlSize(img.src));
+                setImageMeta('metaEncrypted', canvas.width, canvas.height, dataUrlSize(encDataUrl));
                         // compute and show diagram/heatmap/histogram
                     try {
                         // we need original imageData again: draw original into a separate canvas
@@ -270,7 +275,9 @@ document.getElementById('decryptButton').addEventListener('click', function() {
                 const raw = String.fromCharCode(...bytes);
                 const b64 = btoa(raw);
                 const plain = teaDecrypt(b64, key);
+                // decrypted image will be the stego image's visual (we display the same source as input)
                 document.getElementById('decryptedImage').src = img.src;
+                setImageMeta('metaDecrypted', img.width, img.height, dataUrlSize(img.src));
                 // show message in textarea (or alert)
                 document.getElementById('messageInput').value = plain;
                 alert('Pesan berhasil diekstrak.');
@@ -371,7 +378,6 @@ function drawHistogram(hist) {
 function renderFlowchart() {
     const container = document.getElementById('flowchart');
     if (!container) return;
-    // clear prior
     container.innerHTML = '';
 
     const SVGN = 'http://www.w3.org/2000/svg';
@@ -448,5 +454,30 @@ function renderFlowchart() {
     svg.appendChild(makeText('500', '96', 'Ciphertext (base64) disisipkan ke LSB', 'label'));
 
     container.appendChild(svg);
+}
+
+// --- Helpers for image metadata ---
+function dataUrlSize(dataUrl) {
+    if (!dataUrl) return 0;
+    // data:[<mediatype>][;base64],<data>
+    const idx = dataUrl.indexOf(',');
+    if (idx === -1) return 0;
+    const meta = dataUrl.substring(0, idx);
+    const isBase64 = meta.indexOf(';base64') !== -1;
+    const data = dataUrl.substring(idx + 1);
+    if (isBase64) {
+        // approximate bytes from base64 length
+        const padding = (data.endsWith('==') ? 2 : data.endsWith('=') ? 1 : 0);
+        return Math.floor((data.length * 3) / 4) - padding;
+    }
+    // percent-encoded
+    return decodeURIComponent(data).length;
+}
+
+function setImageMeta(elementId, width, height, byteSize) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+    const kb = (byteSize / 1024).toFixed(1);
+    el.innerHTML = `<small>Ukuran: ${width}×${height}px • ${kb} KB</small>`;
 }
 

@@ -75,6 +75,9 @@ button:hover { filter:brightness(0.95); }
 .img-col h4 { margin:6px 0; color:#0f172a }
 .img-col img { width:100%; max-height:360px; object-fit:contain; border:1px solid #f1f5f9; border-radius:8px; background:#ffffff }
 
+.img-meta { font-size:12px; color:#475569; margin-top:8px }
+.img-meta small { color:#64748b }
+
 #output img {
     width: 100%;
     margin: 10px 0;
