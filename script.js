@@ -176,9 +176,7 @@ document.getElementById('encryptButton').addEventListener('click', async functio
                 const payload = Array.from(raw, c => c.charCodeAt(0));
                 const stego = lsbEmbed(imageData, payload);
                 ctx.putImageData(stego, 0, 0);
-                document.getElementById('encryptedImage').src = canvas.toDataURL();
                 const encDataUrl = canvas.toDataURL('image/png');
-                document.getElementById('encryptedImage').src = encDataUrl;
                 // draw to canvases
                 drawToCanvas(img, 'originalCanvas');
                 drawToCanvasDataUrl(encDataUrl, 'encryptedCanvas');
@@ -195,12 +193,14 @@ document.getElementById('encryptButton').addEventListener('click', async functio
                         octx.drawImage(img, 0, 0);
                         const origImageData = octx.getImageData(0, 0, origCanvas.width, origCanvas.height);
                         const stats = computeDiffAndShowDiagram(origImageData, stego);
-                        // prepare hidden canvas for download using stego data
+                        // prepare hidden canvas for download using stego data (full resolution)
                         const hidden = document.getElementById('hiddenStegoCanvas');
-                        hidden.width = canvas.width;
-                        hidden.height = canvas.height;
-                        const hctx = hidden.getContext('2d');
-                        hctx.putImageData(stego, 0, 0);
+                        if (hidden) {
+                            hidden.width = canvas.width;
+                            hidden.height = canvas.height;
+                            const hctx = hidden.getContext('2d');
+                            hctx.putImageData(stego, 0, 0);
+                        }
                         // enable download buttons
                         document.getElementById('downloadStego').disabled = false;
                         document.getElementById('downloadHeatmap').disabled = false;
