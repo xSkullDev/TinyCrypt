@@ -172,7 +172,6 @@ function lsbExtract(imageData) {
     return bytes;
 }
 
-// --- UI Wiring ---
 document.getElementById('encryptButton').addEventListener('click', async function() {
     const imageFile = document.getElementById('imageInput').files[0];
     const message = document.getElementById('messageInput').value || '';
