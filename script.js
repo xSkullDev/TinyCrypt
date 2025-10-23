@@ -55,10 +55,28 @@ function teaDecryptBlock(v0, v1, k) {
 }
 
 function keyToUint32s(keyStr) {
-    const bytes = strToBytes(keyStr.padEnd(16, '\0')).slice(0,16);
+    // Convert key string to UTF-8 bytes, ensure exactly 16 bytes (pad with zeros or truncate)
+    const kb = strToBytes(keyStr || '');
+    const bytes = new Uint8Array(16);
+    for (let i = 0; i < 16; i++) bytes[i] = kb[i] || 0;
     const k = [];
-    for (let i = 0; i < 16; i += 4) k.push(bytesToU32(bytes, i));
+    for (let i = 0; i < 16; i += 4) k.push(bytesToU32(Array.from(bytes), i));
     return k;
+}
+
+// --- helper: base64 <-> bytes ---
+function base64ToBytes(b64) {
+    try {
+        const raw = atob(b64);
+        return Array.from(raw, c => c.charCodeAt(0));
+    } catch (e) {
+        return [];
+    }
+}
+
+function bytesToBase64(bytes) {
+    const s = String.fromCharCode(...bytes);
+    return btoa(s);
 }
 
 function teaEncrypt(plainText, keyStr) {
@@ -171,9 +189,8 @@ document.getElementById('encryptButton').addEventListener('click', async functio
 
             try {
                 const cipherB64 = teaEncrypt(message, key);
-                // convert base64 string to bytes
-                const raw = atob(cipherB64);
-                const payload = Array.from(raw, c => c.charCodeAt(0));
+                // convert base64 string to bytes (use helper)
+                const payload = base64ToBytes(cipherB64);
                 const stego = lsbEmbed(imageData, payload);
                 ctx.putImageData(stego, 0, 0);
                 const encDataUrl = canvas.toDataURL('image/png');
@@ -205,7 +222,9 @@ document.getElementById('encryptButton').addEventListener('click', async functio
                             }
                             // enable download buttons
                             document.getElementById('downloadStego').disabled = false;
-                            document.getElementById('downloadHeatmap').disabled = false; // repurposed to download histogram
+                            // histogram download (renamed)
+                            const dlHistBtn = document.getElementById('downloadHistogram');
+                            if (dlHistBtn) dlHistBtn.disabled = false;
                             document.getElementById('downloadReport').disabled = false;
                             // draw histograms for original and stego
                             try {
@@ -249,7 +268,7 @@ document.getElementById('downloadStego').addEventListener('click', function() {
     }
 });
 
-document.getElementById('downloadHeatmap').addEventListener('click', function() {
+document.getElementById('downloadHistogram').addEventListener('click', function() {
     const canvas = document.getElementById('histStego');
     if (!canvas || canvas.width === 0 || canvas.height === 0) { alert('Tidak ada histogram untuk didownload.'); return; }
     try {
@@ -347,8 +366,7 @@ document.getElementById('decryptButton').addEventListener('click', function() {
 
             try {
                 const bytes = lsbExtract(imageData);
-                const raw = String.fromCharCode(...bytes);
-                const b64 = btoa(raw);
+                const b64 = bytesToBase64(bytes);
                 const plain = teaDecrypt(b64, key);
                 // draw decrypted (visual) to canvas
                 drawToCanvas(img, 'decryptedCanvas');
