@@ -372,6 +372,10 @@ document.getElementById('decryptButton').addEventListener('click', function() {
         const img = new Image();
         img.crossOrigin = 'anonymous';
         img.onload = async function() {
+            // draw the input image to the decrypt input canvas (left side of decrypt row)
+            drawToCanvas(img, 'decryptInputCanvas');
+            setImageMeta('metaDecryptInput', img.width, img.height, imageFileSize(imageFile));
+
             const canvas = document.createElement('canvas');
             canvas.width = img.width;
             canvas.height = img.height;
@@ -383,11 +387,22 @@ document.getElementById('decryptButton').addEventListener('click', function() {
                 const bytes = lsbExtract(imageData);
                 const b64 = bytesToBase64(bytes);
                 const plain = teaDecrypt(b64, key);
-                // draw decrypted (visual) to canvas
-                drawToCanvas(img, 'decryptedCanvas');
+                // draw decrypted (visual) to canvas (right side)
+                const decCanvas = document.getElementById('decryptedCanvas');
+                if (decCanvas) {
+                    decCanvas.width = canvas.width;
+                    decCanvas.height = canvas.height;
+                    const dctx = decCanvas.getContext('2d');
+                    // just show the original image as the visual result (image content is unchanged by LSB)
+                    dctx.clearRect(0,0,decCanvas.width, decCanvas.height);
+                    dctx.drawImage(img, 0, 0);
+                }
                 setImageMeta('metaDecrypted', img.width, img.height, imageFileSize(imageFile));
-                // show message in textarea (or alert)
+                // show message in textarea
                 document.getElementById('messageInput').value = plain;
+                // reveal decrypt row
+                const decryptRow = document.getElementById('decryptRow');
+                if (decryptRow) decryptRow.style.display = 'flex';
                 alert('Pesan berhasil diekstrak.');
             } catch (e) {
                 alert('Error: ' + e.message);
