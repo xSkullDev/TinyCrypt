@@ -442,21 +442,17 @@ function imageFileSize(file) {
     try { return file.size || 0; } catch (e) { return 0; }
 }
 
-// --- Helpers for image metadata ---
 function dataUrlSize(dataUrl) {
     if (!dataUrl) return 0;
-    // data:[<mediatype>][;base64],<data>
     const idx = dataUrl.indexOf(',');
     if (idx === -1) return 0;
     const meta = dataUrl.substring(0, idx);
     const isBase64 = meta.indexOf(';base64') !== -1;
     const data = dataUrl.substring(idx + 1);
     if (isBase64) {
-        // approximate bytes from base64 length
         const padding = (data.endsWith('==') ? 2 : data.endsWith('=') ? 1 : 0);
         return Math.floor((data.length * 3) / 4) - padding;
     }
-    // percent-encoded
     return decodeURIComponent(data).length;
 }
 
