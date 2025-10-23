@@ -71,7 +71,7 @@ function teaEncrypt(plainText, keyStr) {
         const [e0, e1] = teaEncryptBlock(v0, v1, k);
         out.push(...u32ToBytes(e0), ...u32ToBytes(e1));
     }
-    return btoa(String.fromCharCode(...out)); // return base64 ciphertext
+    return btoa(String.fromCharCode(...out));
 }
 
 function teaDecrypt(b64Cipher, keyStr) {
