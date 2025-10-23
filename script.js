@@ -160,8 +160,8 @@ document.getElementById('encryptButton').addEventListener('click', async functio
     const reader = new FileReader();
     reader.onload = function(ev) {
         const img = new Image();
-        img.src = ev.target.result;
-        img.onload = function() {
+        img.crossOrigin = 'anonymous';
+        img.onload = async function() {
             const canvas = document.createElement('canvas');
             canvas.width = img.width;
             canvas.height = img.height;
@@ -228,6 +228,10 @@ document.getElementById('encryptButton').addEventListener('click', async functio
                 alert('Error: ' + e.message);
             }
         };
+        // set src after assigning onload to avoid race conditions
+        img.src = ev.target.result;
+        // try to ensure image fully decoded in browsers that support decode()
+        if (img.decode) img.decode().catch(() => {/* ignore decode errors, onload will still fire */});
     };
     reader.readAsDataURL(imageFile);
 });
@@ -286,8 +290,8 @@ document.getElementById('decryptButton').addEventListener('click', function() {
     const reader = new FileReader();
     reader.onload = function(ev) {
         const img = new Image();
-        img.src = ev.target.result;
-        img.onload = function() {
+        img.crossOrigin = 'anonymous';
+        img.onload = async function() {
             const canvas = document.createElement('canvas');
             canvas.width = img.width;
             canvas.height = img.height;
@@ -310,6 +314,8 @@ document.getElementById('decryptButton').addEventListener('click', function() {
                 alert('Error: ' + e.message);
             }
         };
+        img.src = ev.target.result;
+        if (img.decode) img.decode().catch(() => {/* ignore decode errors */});
     };
     reader.readAsDataURL(imageFile);
 });
