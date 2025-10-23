@@ -179,9 +179,11 @@ document.getElementById('encryptButton').addEventListener('click', async functio
                 document.getElementById('encryptedImage').src = canvas.toDataURL();
                 const encDataUrl = canvas.toDataURL('image/png');
                 document.getElementById('encryptedImage').src = encDataUrl;
-                document.getElementById('originalImage').src = img.src;
+                // draw to canvases
+                drawToCanvas(img, 'originalCanvas');
+                drawToCanvasDataUrl(encDataUrl, 'encryptedCanvas');
                 // fill metadata for original and encrypted
-                setImageMeta('metaOriginal', img.width, img.height, dataUrlSize(img.src));
+                setImageMeta('metaOriginal', img.width, img.height, imageFileSize(imageFile));
                 setImageMeta('metaEncrypted', canvas.width, canvas.height, dataUrlSize(encDataUrl));
                         // compute and show diagram/heatmap/histogram
                     try {
@@ -275,9 +277,9 @@ document.getElementById('decryptButton').addEventListener('click', function() {
                 const raw = String.fromCharCode(...bytes);
                 const b64 = btoa(raw);
                 const plain = teaDecrypt(b64, key);
-                // decrypted image will be the stego image's visual (we display the same source as input)
-                document.getElementById('decryptedImage').src = img.src;
-                setImageMeta('metaDecrypted', img.width, img.height, dataUrlSize(img.src));
+                // draw decrypted (visual) to canvas
+                drawToCanvas(img, 'decryptedCanvas');
+                setImageMeta('metaDecrypted', img.width, img.height, imageFileSize(imageFile));
                 // show message in textarea (or alert)
                 document.getElementById('messageInput').value = plain;
                 alert('Pesan berhasil diekstrak.');
@@ -454,6 +456,28 @@ function renderFlowchart() {
     svg.appendChild(makeText('500', '96', 'Ciphertext (base64) disisipkan ke LSB', 'label'));
 
     container.appendChild(svg);
+}
+
+// Draw an HTMLImageElement to a canvas by id
+function drawToCanvas(imgElem, canvasId) {
+    const c = document.getElementById(canvasId);
+    if (!c) return;
+    c.width = imgElem.naturalWidth;
+    c.height = imgElem.naturalHeight;
+    const ctx = c.getContext('2d');
+    ctx.clearRect(0, 0, c.width, c.height);
+    ctx.drawImage(imgElem, 0, 0);
+}
+
+// Draw from a dataURL into a canvas
+function drawToCanvasDataUrl(dataUrl, canvasId) {
+    const img = new Image();
+    img.onload = function() { drawToCanvas(img, canvasId); };
+    img.src = dataUrl;
+}
+
+function imageFileSize(file) {
+    try { return file.size || 0; } catch (e) { return 0; }
 }
 
 // --- Helpers for image metadata ---

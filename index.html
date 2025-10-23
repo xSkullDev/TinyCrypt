@@ -25,12 +25,12 @@
             <div class="images">
                 <div class="img-col">
                     <h4>Gambar Asli</h4>
-                    <img id="originalImage" alt="Gambar Asli">
+                    <canvas id="originalCanvas"></canvas>
                     <div class="img-meta" id="metaOriginal"></div>
                 </div>
                 <div class="img-col">
                     <h4>Gambar Stego</h4>
-                    <img id="encryptedImage" alt="Gambar Enkripsi">
+                    <canvas id="encryptedCanvas"></canvas>
                     <div class="img-meta" id="metaEncrypted"></div>
                     <div class="download-row">
                         <button id="downloadStego" disabled>Download Stego</button>
@@ -40,7 +40,7 @@
                 </div>
                 <div class="img-col">
                     <h4>Gambar Dekripsi</h4>
-                    <img id="decryptedImage" alt="Gambar Dekripsi">
+                    <canvas id="decryptedCanvas"></canvas>
                     <div class="img-meta" id="metaDecrypted"></div>
                 </div>
             </div>
