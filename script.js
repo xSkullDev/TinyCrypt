@@ -369,44 +369,84 @@ function drawHistogram(hist) {
 }
 
 function renderFlowchart() {
-        const container = document.getElementById('flowchart');
-        // SVG string for the flowchart
-        const svg = `
-        <svg viewBox="0 0 800 140" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Flowchart proses enkripsi dan penyisipan">
-            <defs>
-                <style>
-                    .box { fill:#ffffff; stroke:#0f172a; stroke-width:1; rx:8; }
-                    .label { font-family: Inter, Arial, sans-serif; font-size:13px; fill:#0f172a; }
-                    .arrow { stroke:#0f172a; stroke-width:2; marker-end: url(#arrowhead); }
-                </style>
-                <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto-start-reverse">
-                    <polygon points="0 0, 10 3.5, 0 7" fill="#0f172a" />
-                </marker>
-            </defs>
-            <rect x="20" y="20" width="160" height="48" class="box" />
-            <text x="100" y="50" text-anchor="middle" class="label">Gambar Asli</text>
-            <rect x="220" y="20" width="160" height="48" class="box" />
-            <text x="300" y="50" text-anchor="middle" class="label">TEA Enkripsi</text>
-            <rect x="420" y="20" width="160" height="48" class="box" />
-            <text x="500" y="50" text-anchor="middle" class="label">LSB Embed</text>
-            <rect x="620" y="20" width="160" height="48" class="box" />
-            <text x="700" y="50" text-anchor="middle" class="label">Gambar Stego</text>
+    const container = document.getElementById('flowchart');
+    if (!container) return;
+    // clear prior
+    container.innerHTML = '';
 
-            <line x1="180" y1="44" x2="220" y2="44" class="arrow" />
-            <line x1="380" y1="44" x2="420" y2="44" class="arrow" />
-            <line x1="580" y1="44" x2="620" y2="44" class="arrow" />
+    const SVGN = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(SVGN, 'svg');
+    svg.setAttribute('viewBox', '0 0 800 140');
+    svg.setAttribute('role', 'img');
+    svg.setAttribute('aria-label', 'Flowchart proses enkripsi dan penyisipan');
 
-            <text x="300" y="80" text-anchor="middle" class="label">Pesan → PKCS7 → TEA (blok 64-bit)</text>
-            <text x="500" y="96" text-anchor="middle" class="label">Ciphertext (base64) disisipkan ke LSB</text>
-        </svg>`;
+    const defs = document.createElementNS(SVGN, 'defs');
+    const style = document.createElementNS(SVGN, 'style');
+    style.textContent = `.box { fill:#ffffff; stroke:#0f172a; stroke-width:1; rx:8; }
+    .label { font-family: Inter, Arial, sans-serif; font-size:13px; fill:#0f172a; }
+    .arrow { stroke:#0f172a; stroke-width:2; marker-end: url(#arrowhead); }`;
+    defs.appendChild(style);
 
-        // parse SVG and append as DOM node (safer than innerHTML for SVG)
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(svg, 'image/svg+xml');
-        // clear previous content
-        while (container.firstChild) container.removeChild(container.firstChild);
-        const svgNode = doc.documentElement;
-        // ensure styles are preserved by importing node
-        container.appendChild(document.adoptNode(svgNode));
+    const marker = document.createElementNS(SVGN, 'marker');
+    marker.setAttribute('id', 'arrowhead');
+    marker.setAttribute('markerWidth', '10');
+    marker.setAttribute('markerHeight', '7');
+    marker.setAttribute('refX', '10');
+    marker.setAttribute('refY', '3.5');
+    marker.setAttribute('orient', 'auto-start-reverse');
+    const poly = document.createElementNS(SVGN, 'polygon');
+    poly.setAttribute('points', '0 0, 10 3.5, 0 7');
+    poly.setAttribute('fill', '#0f172a');
+    marker.appendChild(poly);
+    defs.appendChild(marker);
+    svg.appendChild(defs);
+
+    function makeRect(x, y, w, h, cls) {
+        const r = document.createElementNS(SVGN, 'rect');
+        r.setAttribute('x', x);
+        r.setAttribute('y', y);
+        r.setAttribute('width', w);
+        r.setAttribute('height', h);
+        if (cls) r.setAttribute('class', cls);
+        return r;
+    }
+
+    function makeText(x, y, txt, cls) {
+        const t = document.createElementNS(SVGN, 'text');
+        t.setAttribute('x', x);
+        t.setAttribute('y', y);
+        t.setAttribute('text-anchor', 'middle');
+        if (cls) t.setAttribute('class', cls);
+        t.textContent = txt;
+        return t;
+    }
+
+    function makeLine(x1, y1, x2, y2, cls) {
+        const l = document.createElementNS(SVGN, 'line');
+        l.setAttribute('x1', x1);
+        l.setAttribute('y1', y1);
+        l.setAttribute('x2', x2);
+        l.setAttribute('y2', y2);
+        if (cls) l.setAttribute('class', cls);
+        return l;
+    }
+
+    svg.appendChild(makeRect('20', '20', '160', '48', 'box'));
+    svg.appendChild(makeText('100', '50', 'Gambar Asli', 'label'));
+    svg.appendChild(makeRect('220', '20', '160', '48', 'box'));
+    svg.appendChild(makeText('300', '50', 'TEA Enkripsi', 'label'));
+    svg.appendChild(makeRect('420', '20', '160', '48', 'box'));
+    svg.appendChild(makeText('500', '50', 'LSB Embed', 'label'));
+    svg.appendChild(makeRect('620', '20', '160', '48', 'box'));
+    svg.appendChild(makeText('700', '50', 'Gambar Stego', 'label'));
+
+    svg.appendChild(makeLine('180', '44', '220', '44', 'arrow'));
+    svg.appendChild(makeLine('380', '44', '420', '44', 'arrow'));
+    svg.appendChild(makeLine('580', '44', '620', '44', 'arrow'));
+
+    svg.appendChild(makeText('300', '80', 'Pesan → PKCS7 → TEA (blok 64-bit)', 'label'));
+    svg.appendChild(makeText('500', '96', 'Ciphertext (base64) disisipkan ke LSB', 'label'));
+
+    container.appendChild(svg);
 }
 
