@@ -19,14 +19,20 @@ function bytesToU32(b, offset=0) {
 
 // --- PKCS7 padding for block size 8 ---
 function pkcs7Pad(bytes, blockSize = 8) {
-    const padLen = blockSize - (bytes.length % blockSize || blockSize);
-    return bytes.concat(new Array(padLen).fill(padLen));
+    const padLen = blockSize - (bytes.length % blockSize);
+    const pad = new Array(padLen).fill(padLen);
+    return bytes.concat(pad);
 }
 
 function pkcs7Unpad(bytes) {
-    if (bytes.length === 0) return bytes;
+    if (!bytes || bytes.length === 0) return bytes;
     const padLen = bytes[bytes.length - 1];
-    if (padLen <= 0 || padLen > 8) return bytes; // invalid, return raw
+    // validate padLen
+    if (padLen <= 0 || padLen > 8 || padLen > bytes.length) return bytes;
+    // verify all padding bytes are equal to padLen
+    for (let i = bytes.length - padLen; i < bytes.length; i++) {
+        if (bytes[i] !== padLen) return bytes; // invalid padding, return raw
+    }
     return bytes.slice(0, bytes.length - padLen);
 }
 
@@ -68,7 +74,9 @@ function keyToUint32s(keyStr) {
 function base64ToBytes(b64) {
     try {
         const raw = atob(b64);
-        return Array.from(raw, c => c.charCodeAt(0));
+        const out = new Array(raw.length);
+        for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+        return out;
     } catch (e) {
         return [];
     }
@@ -302,16 +310,17 @@ function computeLumaHistogramFromCanvas(canvas) {
 function drawHistogramToCanvas(canvasId, hist, color = '#2563eb') {
     const c = document.getElementById(canvasId);
     if (!c) return;
-    const ctx = c.getContext('2d');
-    // ensure pixel width 256 for one-pixel bins, scale to canvas width
+    // ensure pixel width 256 for one-pixel bins, scale to canvas height
     const bins = 256;
-    const W = c.width || c.clientWidth || 256;
-    const H = c.height || c.clientHeight || 120;
-    // set internal canvas resolution to bins x H for crisp bins
+    const cssWidth = c.clientWidth || 256;
+    const cssHeight = c.clientHeight || 120;
+    // set internal canvas resolution BEFORE getting context
     c.width = bins;
-    c.height = H;
+    c.height = cssHeight;
+    const ctx = c.getContext('2d');
     ctx.clearRect(0, 0, c.width, c.height);
     const max = Math.max(...hist) || 1;
+    const H = c.height || cssHeight;
     for (let i = 0; i < bins; i++) {
         const hgt = Math.round((hist[i] / max) * H);
         ctx.fillStyle = color;
