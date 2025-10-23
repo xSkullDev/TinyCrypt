@@ -462,4 +462,3 @@ function setImageMeta(elementId, width, height, byteSize) {
     const kb = (byteSize / 1024).toFixed(1);
     el.innerHTML = `<small>Ukuran: ${width}×${height}px • ${kb} KB</small>`;
 }
-
