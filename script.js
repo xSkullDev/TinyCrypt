@@ -177,9 +177,19 @@ document.getElementById('encryptButton').addEventListener('click', async functio
                 const stego = lsbEmbed(imageData, payload);
                 ctx.putImageData(stego, 0, 0);
                 const encDataUrl = canvas.toDataURL('image/png');
-                // draw to canvases
+                // draw to canvases: original from image, encrypted by copying the working canvas to the visible encryptedCanvas
                 drawToCanvas(img, 'originalCanvas');
-                drawToCanvasDataUrl(encDataUrl, 'encryptedCanvas');
+                const visibleEnc = document.getElementById('encryptedCanvas');
+                if (visibleEnc) {
+                    visibleEnc.width = canvas.width;
+                    visibleEnc.height = canvas.height;
+                    const vctx = visibleEnc.getContext('2d');
+                    vctx.clearRect(0, 0, visibleEnc.width, visibleEnc.height);
+                    vctx.drawImage(canvas, 0, 0);
+                } else {
+                    // fallback: try to set via data URL
+                    if (encDataUrl) drawToCanvasDataUrl(encDataUrl, 'encryptedCanvas');
+                }
                 // fill metadata for original and encrypted
                 setImageMeta('metaOriginal', img.width, img.height, imageFileSize(imageFile));
                 setImageMeta('metaEncrypted', canvas.width, canvas.height, dataUrlSize(encDataUrl));
@@ -225,21 +235,34 @@ document.getElementById('encryptButton').addEventListener('click', async functio
 // Download button handlers
 document.getElementById('downloadStego').addEventListener('click', function() {
     const hidden = document.getElementById('hiddenStegoCanvas');
-    const url = hidden.toDataURL('image/png');
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'stego.png';
-    a.click();
+    if (!hidden || hidden.width === 0 || hidden.height === 0) {
+        alert('Tidak ada gambar stego yang dapat didownload. Silakan lakukan enkripsi terlebih dahulu.');
+        return;
+    }
+    try {
+        const url = hidden.toDataURL('image/png');
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'stego.png';
+        a.click();
+    } catch (e) {
+        alert('Gagal membuat file PNG: ' + e.message);
+    }
 });
 
 document.getElementById('downloadHeatmap').addEventListener('click', function() {
     const canvas = document.getElementById('diffHeatmap');
     // create a temp canvas scaled up for visibility if necessary
-    const url = canvas.toDataURL('image/png');
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'heatmap.png';
-    a.click();
+    if (!canvas || canvas.width === 0 || canvas.height === 0) { alert('Tidak ada heatmap untuk didownload.'); return; }
+    try {
+        const url = canvas.toDataURL('image/png');
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'heatmap.png';
+        a.click();
+    } catch (e) {
+        alert('Gagal membuat file heatmap: ' + e.message);
+    }
 });
 
 document.getElementById('downloadReport').addEventListener('click', function() {
@@ -471,8 +494,13 @@ function drawToCanvas(imgElem, canvasId) {
 
 // Draw from a dataURL into a canvas
 function drawToCanvasDataUrl(dataUrl, canvasId) {
+    if (!dataUrl) {
+        console.warn('drawToCanvasDataUrl: empty dataUrl for', canvasId);
+        return;
+    }
     const img = new Image();
     img.onload = function() { drawToCanvas(img, canvasId); };
+    img.onerror = function(e) { console.warn('drawToCanvasDataUrl failed to load image', e); };
     img.src = dataUrl;
 }
 
