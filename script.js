@@ -71,7 +71,7 @@ function teaEncrypt(plainText, keyStr) {
         const [e0, e1] = teaEncryptBlock(v0, v1, k);
         out.push(...u32ToBytes(e0), ...u32ToBytes(e1));
     }
-    return btoa(String.fromCharCode(...out));
+    return btoa(String.fromCharCode(...out)); // return base64 ciphertext
 }
 
 function teaDecrypt(b64Cipher, keyStr) {
@@ -369,37 +369,44 @@ function drawHistogram(hist) {
 }
 
 function renderFlowchart() {
-    const container = document.getElementById('flowchart');
-    // simple SVG flowchart: Original -> TEA Encrypt -> LSB Embed -> Stego
-    const svg = `
-    <svg viewBox="0 0 800 120" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <style>
-          .box { fill:#fff; stroke:#333; stroke-width:1; rx:6; }
-          .label { font-family: Arial, sans-serif; font-size:12px; }
-          .arrow { stroke:#333; stroke-width:2; marker-end: url(#arrowhead); }
-        </style>
-        <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
-          <polygon points="0 0, 10 3.5, 0 7" fill="#333" />
-        </marker>
-      </defs>
-      <rect x="20" y="20" width="140" height="40" class="box" />
-      <text x="90" y="45" text-anchor="middle" class="label">Gambar Asli</text>
-      <rect x="220" y="20" width="140" height="40" class="box" />
-      <text x="290" y="45" text-anchor="middle" class="label">TEA Enkripsi</text>
-      <rect x="420" y="20" width="140" height="40" class="box" />
-      <text x="490" y="45" text-anchor="middle" class="label">LSB Embed</text>
-      <rect x="620" y="20" width="140" height="40" class="box" />
-      <text x="690" y="45" text-anchor="middle" class="label">Gambar Stego</text>
+        const container = document.getElementById('flowchart');
+        // SVG string for the flowchart
+        const svg = `
+        <svg viewBox="0 0 800 140" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Flowchart proses enkripsi dan penyisipan">
+            <defs>
+                <style>
+                    .box { fill:#ffffff; stroke:#0f172a; stroke-width:1; rx:8; }
+                    .label { font-family: Inter, Arial, sans-serif; font-size:13px; fill:#0f172a; }
+                    .arrow { stroke:#0f172a; stroke-width:2; marker-end: url(#arrowhead); }
+                </style>
+                <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto-start-reverse">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#0f172a" />
+                </marker>
+            </defs>
+            <rect x="20" y="20" width="160" height="48" class="box" />
+            <text x="100" y="50" text-anchor="middle" class="label">Gambar Asli</text>
+            <rect x="220" y="20" width="160" height="48" class="box" />
+            <text x="300" y="50" text-anchor="middle" class="label">TEA Enkripsi</text>
+            <rect x="420" y="20" width="160" height="48" class="box" />
+            <text x="500" y="50" text-anchor="middle" class="label">LSB Embed</text>
+            <rect x="620" y="20" width="160" height="48" class="box" />
+            <text x="700" y="50" text-anchor="middle" class="label">Gambar Stego</text>
 
-      <line x1="160" y1="40" x2="220" y2="40" class="arrow" />
-      <line x1="360" y1="40" x2="420" y2="40" class="arrow" />
-      <line x1="560" y1="40" x2="620" y2="40" class="arrow" />
+            <line x1="180" y1="44" x2="220" y2="44" class="arrow" />
+            <line x1="380" y1="44" x2="420" y2="44" class="arrow" />
+            <line x1="580" y1="44" x2="620" y2="44" class="arrow" />
 
-      <!-- small notes -->
-      <text x="290" y="65" text-anchor="middle" class="label">Pesan -> PKCS7 -> TEA (blok 64-bit)</text>
-      <text x="490" y="65" text-anchor="middle" class="label">Ciphertext (base64) disisipkan ke LSB</text>
-    </svg>`;
-    container.innerHTML = svg;
+            <text x="300" y="80" text-anchor="middle" class="label">Pesan → PKCS7 → TEA (blok 64-bit)</text>
+            <text x="500" y="96" text-anchor="middle" class="label">Ciphertext (base64) disisipkan ke LSB</text>
+        </svg>`;
+
+        // parse SVG and append as DOM node (safer than innerHTML for SVG)
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(svg, 'image/svg+xml');
+        // clear previous content
+        while (container.firstChild) container.removeChild(container.firstChild);
+        const svgNode = doc.documentElement;
+        // ensure styles are preserved by importing node
+        container.appendChild(document.adoptNode(svgNode));
 }
 
