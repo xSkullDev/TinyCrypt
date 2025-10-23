@@ -263,56 +263,133 @@ document.getElementById('downloadHeatmap').addEventListener('click', function() 
     }
 });
 
-// compute luminance histogram (0..255) from a canvas element and return Uint32Array[256]
-function computeLumaHistogramFromCanvas(canvas) {
+// Compute per-channel (R,G,B) histograms (0..255) plus 1-bit LSB counts for each channel.
+// Returns { r: Uint32Array(256), g: Uint32Array(256), b: Uint32Array(256), lsbR: Uint32Array(2), lsbG: Uint32Array(2), lsbB: Uint32Array(2), totalPixels }
+function computeChannelHistogramsFromCanvas(canvas) {
     const ctx = canvas.getContext('2d');
     const w = canvas.width;
     const h = canvas.height;
-    if (!w || !h) return new Uint32Array(256);
+    if (!w || !h) return null;
     const img = ctx.getImageData(0, 0, w, h).data;
-    const hist = new Uint32Array(256);
+    const r = new Uint32Array(256), g = new Uint32Array(256), b = new Uint32Array(256);
+    const lsbR = new Uint32Array(2), lsbG = new Uint32Array(2), lsbB = new Uint32Array(2);
+    let pixels = 0;
     for (let i = 0; i < img.length; i += 4) {
-        // luminance approximation
-        const r = img[i], g = img[i+1], b = img[i+2];
-        const l = Math.round(0.2126 * r + 0.7152 * g + 0.0722 * b);
-        hist[l]++;
+        const rv = img[i], gv = img[i+1], bv = img[i+2];
+        r[rv]++; g[gv]++; b[bv]++;
+        lsbR[rv & 1]++; lsbG[gv & 1]++; lsbB[bv & 1]++;
+        pixels++;
     }
-    return hist;
+    return { r, g, b, lsbR, lsbG, lsbB, totalPixels: pixels };
 }
 
-function drawHistogramToCanvas(canvasId, hist, color = '#2563eb') {
+// Draw an informative histogram into a canvas element showing per-channel distributions
+// and a small LSB (0/1) bar chart. If histCompare is provided, draw an absolute-difference overlay
+// so changes introduced by steganography become visible.
+// Signature: drawHistogramToCanvas(canvasId, histPrimary, histCompare)
+function drawHistogramToCanvas(canvasId, histPrimary, histCompare) {
     const c = document.getElementById(canvasId);
-    if (!c) return;
+    if (!c || !histPrimary) return;
     const ctx = c.getContext('2d');
-    // ensure pixel width 256 for one-pixel bins, scale to canvas width
     const bins = 256;
-    const W = c.width || c.clientWidth || 256;
-    const H = c.height || c.clientHeight || 120;
-    // set internal canvas resolution to bins x H for crisp bins
+    const mainH = 120;
+    const lsbH = 40;
     c.width = bins;
-    c.height = H;
+    c.height = mainH + lsbH;
     ctx.clearRect(0, 0, c.width, c.height);
-    const max = Math.max(...hist) || 1;
+
+    // find max for normalization across channels
+    const maxR = Math.max(...histPrimary.r);
+    const maxG = Math.max(...histPrimary.g);
+    const maxB = Math.max(...histPrimary.b);
+    const maxChannel = Math.max(maxR, maxG, maxB, 1);
+
+    // draw R, G, B as translucent overlays (order: B, G, R so R is on top visually)
     for (let i = 0; i < bins; i++) {
-        const hgt = Math.round((hist[i] / max) * H);
-        ctx.fillStyle = color;
-        ctx.fillRect(i, H - hgt, 1, hgt);
+        const hr = Math.round((histPrimary.r[i] / maxChannel) * mainH);
+        const hg = Math.round((histPrimary.g[i] / maxChannel) * mainH);
+        const hb = Math.round((histPrimary.b[i] / maxChannel) * mainH);
+        if (hb > 0) { ctx.fillStyle = 'rgba(59,130,246,0.25)'; ctx.fillRect(i, mainH - hb, 1, hb); }
+        if (hg > 0) { ctx.fillStyle = 'rgba(16,185,129,0.25)'; ctx.fillRect(i, mainH - hg, 1, hg); }
+        if (hr > 0) { ctx.fillStyle = 'rgba(239,68,68,0.30)'; ctx.fillRect(i, mainH - hr, 1, hr); }
     }
-    // scale back visually via CSS (canvas element will be stretched)
+
+    // draw difference overlay if comparison histogram is provided
+    if (histCompare) {
+        // compute absolute difference per-channel and use it to draw a semi-transparent gray overlay
+        let maxDiff = 1;
+        const diffR = new Uint32Array(bins), diffG = new Uint32Array(bins), diffB = new Uint32Array(bins);
+        for (let i = 0; i < bins; i++) {
+            const dR = Math.abs((histCompare.r[i] || 0) - (histPrimary.r[i] || 0));
+            const dG = Math.abs((histCompare.g[i] || 0) - (histPrimary.g[i] || 0));
+            const dB = Math.abs((histCompare.b[i] || 0) - (histPrimary.b[i] || 0));
+            const d = Math.max(dR, dG, dB);
+            diffR[i] = dR; diffG[i] = dG; diffB[i] = dB;
+            if (d > maxDiff) maxDiff = d;
+        }
+        // draw the absolute-difference as a thin darker overlay (black-ish)
+        for (let i = 0; i < bins; i++) {
+            const d = Math.max(diffR[i], diffG[i], diffB[i]);
+            if (d === 0) continue;
+            const dh = Math.round((d / maxDiff) * mainH);
+            ctx.fillStyle = 'rgba(30,30,30,0.25)';
+            ctx.fillRect(i, mainH - dh, 1, dh);
+        }
+    }
+
+    // draw tiny grid baseline
+    ctx.strokeStyle = 'rgba(0,0,0,0.06)';
+    ctx.beginPath();
+    for (let y = 0; y <= mainH; y += 20) { ctx.moveTo(0, y); ctx.lineTo(bins, y); }
+    ctx.stroke();
+
+    // draw LSB 0/1 bars for each channel below
+    const baseY = mainH;
+    const groupW = Math.floor(bins / 4);
+    const barW = Math.max(6, Math.floor(groupW / 3));
+    const lsbMax = Math.max(...histPrimary.lsbR, ...histPrimary.lsbG, ...histPrimary.lsbB, 1);
+    const groupsX = [Math.floor(bins * 0.2), Math.floor(bins * 0.5), Math.floor(bins * 0.8)];
+    const colors = ['rgba(239,68,68,0.9)', 'rgba(16,185,129,0.9)', 'rgba(59,130,246,0.9)'];
+    const channelsLSB = [histPrimary.lsbR, histPrimary.lsbG, histPrimary.lsbB];
+    for (let ch = 0; ch < 3; ch++) {
+        const arr = channelsLSB[ch];
+        const x = groupsX[ch];
+        // two bars: bit0 then bit1
+        const h0 = Math.round((arr[0] / lsbMax) * lsbH);
+        const h1 = Math.round((arr[1] / lsbMax) * lsbH);
+        // draw backgrounds
+        ctx.fillStyle = 'rgba(0,0,0,0.04)'; ctx.fillRect(x - barW - 2, baseY + 2, barW * 2 + 4, lsbH - 4);
+        // bit0
+        ctx.fillStyle = colors[ch].replace('0.9', '0.85');
+        ctx.fillRect(x - barW, baseY + (lsbH - h0), barW, h0);
+        // bit1 (darker)
+        ctx.fillStyle = colors[ch];
+        ctx.fillRect(x + 2, baseY + (lsbH - h1), barW, h1);
+        // labels
+        ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.font = '10px sans-serif'; ctx.fillText('0', x - barW + 1, baseY + lsbH + 10);
+        ctx.fillText('1', x + 3, baseY + lsbH + 10);
+    }
+
+    // add legend text
+    ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.font = '11px sans-serif';
+    ctx.fillText('R', 6, 12); ctx.fillStyle = 'rgba(239,68,68,0.9)'; ctx.fillRect(24,4,10,8);
+    ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillText('G', 44, 12); ctx.fillStyle = 'rgba(16,185,129,0.9)'; ctx.fillRect(62,4,10,8);
+    ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillText('B', 84, 12); ctx.fillStyle = 'rgba(59,130,246,0.9)'; ctx.fillRect(102,4,10,8);
+    ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillText('LSB 0/1 (R G B)', bins - 110, 12);
 }
 
 function drawBothHistograms(origCanvas, stegoCanvas) {
-    // create temporary canvases scaled down to reasonable sample size if needed
-    // use full resolution of visual canvases
+    if (!origCanvas || !stegoCanvas) return;
     const oW = origCanvas.width, oH = origCanvas.height;
     const sW = stegoCanvas.width, sH = stegoCanvas.height;
-    // draw to in-memory canvases to ensure we sample pixel data
     const tmpO = document.createElement('canvas'); tmpO.width = oW; tmpO.height = oH; tmpO.getContext('2d').drawImage(origCanvas, 0, 0);
     const tmpS = document.createElement('canvas'); tmpS.width = sW; tmpS.height = sH; tmpS.getContext('2d').drawImage(stegoCanvas, 0, 0);
-    const histO = computeLumaHistogramFromCanvas(tmpO);
-    const histS = computeLumaHistogramFromCanvas(tmpS);
-    drawHistogramToCanvas('histOriginal', histO, '#2563eb');
-    drawHistogramToCanvas('histStego', histS, '#10b981');
+    const histO = computeChannelHistogramsFromCanvas(tmpO);
+    const histS = computeChannelHistogramsFromCanvas(tmpS);
+    // draw original with difference overlay showing stego changes
+    drawHistogramToCanvas('histOriginal', histO, histS);
+    // draw stego with difference overlay showing original differences
+    drawHistogramToCanvas('histStego', histS, histO);
 }
 
 document.getElementById('downloadReport').addEventListener('click', function() {
