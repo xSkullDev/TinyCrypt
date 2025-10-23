@@ -234,11 +234,17 @@ document.getElementById('encryptButton').addEventListener('click', async functio
                             const dlHistBtn = document.getElementById('downloadHistogram');
                             if (dlHistBtn) dlHistBtn.disabled = false;
                             document.getElementById('downloadReport').disabled = false;
-                            // draw histograms for original and stego
+                            // draw histograms for original and stego (use hidden full-res stego canvas when available)
                             try {
                                 const origVis = document.getElementById('originalCanvas');
-                                const encVis = document.getElementById('encryptedCanvas');
-                                if (origVis && encVis) drawBothHistograms(origVis, encVis);
+                                const visibleEnc = document.getElementById('encryptedCanvas');
+                                const hiddenStego = document.getElementById('hiddenStegoCanvas');
+                                // prefer hidden full-resolution stego for histogram accuracy
+                                if (origVis && hiddenStego && hiddenStego.width > 0 && hiddenStego.height > 0) {
+                                    drawBothHistograms(origVis, hiddenStego);
+                                } else if (origVis && visibleEnc) {
+                                    drawBothHistograms(origVis, visibleEnc);
+                                }
                             } catch (e) { console.warn('Histogram draw failed', e); }
                             // store minimal metadata
                             window.__tinycrypt_last_stats = { imageWidth: canvas.width, imageHeight: canvas.height };
