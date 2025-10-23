@@ -93,10 +93,12 @@ button:hover { filter:brightness(0.95); }
 
 #diagram h3 { margin:0 0 8px 0; color:#0f172a }
 
-#diagramCanvas {
+.hist-row { display:flex; gap:12px }
+.hist-col { flex:1; text-align:center }
+.hist-col h4 { margin:6px 0 }
+#histOriginal, #histStego {
     width: 100%;
-    height: auto;
-    max-height: 480px;
+    height: 120px;
     background: #fff;
     border: 1px solid #eef2f6;
     display:block;

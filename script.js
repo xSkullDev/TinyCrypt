@@ -194,38 +194,30 @@ document.getElementById('encryptButton').addEventListener('click', async functio
                 setImageMeta('metaOriginal', img.width, img.height, imageFileSize(imageFile));
                 setImageMeta('metaEncrypted', canvas.width, canvas.height, dataUrlSize(encDataUrl));
                         // compute and show diagram/heatmap/histogram
-                    try {
-                        // we need original imageData again: draw original into a separate canvas
-                        const origCanvas = document.createElement('canvas');
-                        origCanvas.width = img.width;
-                        origCanvas.height = img.height;
-                        const octx = origCanvas.getContext('2d');
-                        octx.drawImage(img, 0, 0);
-                        const origImageData = octx.getImageData(0, 0, origCanvas.width, origCanvas.height);
-                        const stats = computeDiffAndShowDiagram(origImageData, stego);
-                        // prepare hidden canvas for download using stego data (full resolution)
-                        const hidden = document.getElementById('hiddenStegoCanvas');
-                        if (hidden) {
-                            hidden.width = canvas.width;
-                            hidden.height = canvas.height;
-                            const hctx = hidden.getContext('2d');
-                            hctx.putImageData(stego, 0, 0);
-                        }
-                        // enable download buttons
-                        document.getElementById('downloadStego').disabled = false;
-                        document.getElementById('downloadHeatmap').disabled = false; // repurposed to download diagram
-                        document.getElementById('downloadReport').disabled = false;
-                        // draw diagram showing original vs stego
                         try {
-                            const origCanvas = document.getElementById('originalCanvas');
-                            const encCanvas = document.getElementById('encryptedCanvas');
-                            if (origCanvas && encCanvas) drawDiagramCanvas(origCanvas, encCanvas);
-                        } catch (e) { console.warn('Diagram draw failed', e); }
-                        // store the last stats for download (kept minimal)
-                        window.__tinycrypt_last_stats = { imageWidth: canvas.width, imageHeight: canvas.height };
-                    } catch (e) {
-                        console.warn('Diagram generation failed:', e);
-                    }
+                            // prepare hidden canvas for download using stego data (full resolution)
+                            const hidden = document.getElementById('hiddenStegoCanvas');
+                            if (hidden) {
+                                hidden.width = canvas.width;
+                                hidden.height = canvas.height;
+                                const hctx = hidden.getContext('2d');
+                                hctx.putImageData(stego, 0, 0);
+                            }
+                            // enable download buttons
+                            document.getElementById('downloadStego').disabled = false;
+                            document.getElementById('downloadHeatmap').disabled = false; // repurposed to download histogram
+                            document.getElementById('downloadReport').disabled = false;
+                            // draw histograms for original and stego
+                            try {
+                                const origVis = document.getElementById('originalCanvas');
+                                const encVis = document.getElementById('encryptedCanvas');
+                                if (origVis && encVis) drawBothHistograms(origVis, encVis);
+                            } catch (e) { console.warn('Histogram draw failed', e); }
+                            // store minimal metadata
+                            window.__tinycrypt_last_stats = { imageWidth: canvas.width, imageHeight: canvas.height };
+                        } catch (e) {
+                            console.warn('Histogram generation failed:', e);
+                        }
                 alert('Pesan berhasil disisipkan ke gambar.');
             } catch (e) {
                 alert('Error: ' + e.message);
@@ -258,18 +250,70 @@ document.getElementById('downloadStego').addEventListener('click', function() {
 });
 
 document.getElementById('downloadHeatmap').addEventListener('click', function() {
-    const canvas = document.getElementById('diagramCanvas');
-    if (!canvas || canvas.width === 0 || canvas.height === 0) { alert('Tidak ada diagram untuk didownload.'); return; }
+    const canvas = document.getElementById('histStego');
+    if (!canvas || canvas.width === 0 || canvas.height === 0) { alert('Tidak ada histogram untuk didownload.'); return; }
     try {
         const url = canvas.toDataURL('image/png');
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'diagram.png';
+        a.download = 'histogram_stego.png';
         a.click();
     } catch (e) {
-        alert('Gagal membuat file diagram: ' + e.message);
+        alert('Gagal membuat file histogram: ' + e.message);
     }
 });
+
+// compute luminance histogram (0..255) from a canvas element and return Uint32Array[256]
+function computeLumaHistogramFromCanvas(canvas) {
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width;
+    const h = canvas.height;
+    if (!w || !h) return new Uint32Array(256);
+    const img = ctx.getImageData(0, 0, w, h).data;
+    const hist = new Uint32Array(256);
+    for (let i = 0; i < img.length; i += 4) {
+        // luminance approximation
+        const r = img[i], g = img[i+1], b = img[i+2];
+        const l = Math.round(0.2126 * r + 0.7152 * g + 0.0722 * b);
+        hist[l]++;
+    }
+    return hist;
+}
+
+function drawHistogramToCanvas(canvasId, hist, color = '#2563eb') {
+    const c = document.getElementById(canvasId);
+    if (!c) return;
+    const ctx = c.getContext('2d');
+    // ensure pixel width 256 for one-pixel bins, scale to canvas width
+    const bins = 256;
+    const W = c.width || c.clientWidth || 256;
+    const H = c.height || c.clientHeight || 120;
+    // set internal canvas resolution to bins x H for crisp bins
+    c.width = bins;
+    c.height = H;
+    ctx.clearRect(0, 0, c.width, c.height);
+    const max = Math.max(...hist) || 1;
+    for (let i = 0; i < bins; i++) {
+        const hgt = Math.round((hist[i] / max) * H);
+        ctx.fillStyle = color;
+        ctx.fillRect(i, H - hgt, 1, hgt);
+    }
+    // scale back visually via CSS (canvas element will be stretched)
+}
+
+function drawBothHistograms(origCanvas, stegoCanvas) {
+    // create temporary canvases scaled down to reasonable sample size if needed
+    // use full resolution of visual canvases
+    const oW = origCanvas.width, oH = origCanvas.height;
+    const sW = stegoCanvas.width, sH = stegoCanvas.height;
+    // draw to in-memory canvases to ensure we sample pixel data
+    const tmpO = document.createElement('canvas'); tmpO.width = oW; tmpO.height = oH; tmpO.getContext('2d').drawImage(origCanvas, 0, 0);
+    const tmpS = document.createElement('canvas'); tmpS.width = sW; tmpS.height = sH; tmpS.getContext('2d').drawImage(stegoCanvas, 0, 0);
+    const histO = computeLumaHistogramFromCanvas(tmpO);
+    const histS = computeLumaHistogramFromCanvas(tmpS);
+    drawHistogramToCanvas('histOriginal', histO, '#2563eb');
+    drawHistogramToCanvas('histStego', histS, '#10b981');
+}
 
 document.getElementById('downloadReport').addEventListener('click', function() {
     const stats = window.__tinycrypt_last_stats;
@@ -322,43 +366,7 @@ document.getElementById('decryptButton').addEventListener('click', function() {
     reader.readAsDataURL(imageFile);
 });
 
-// --- Diagram: draw original and stego side-by-side into one canvas ---
-function drawDiagramCanvas(origCanvas, stegoCanvas) {
-    const canvas = document.getElementById('diagramCanvas');
-    if (!canvas) return;
-    // compute target size: fit both images side-by-side within canvas width
-    const maxWidth = 1200; // cap large sizes
-    const padding = 8;
-    const origW = origCanvas.width || origCanvas.naturalWidth || 0;
-    const origH = origCanvas.height || origCanvas.naturalHeight || 0;
-    const stegoW = stegoCanvas.width || stegoCanvas.naturalWidth || 0;
-    const stegoH = stegoCanvas.height || stegoCanvas.naturalHeight || 0;
-    const height = Math.max(origH, stegoH);
-    const totalW = origW + stegoW + padding * 3;
-    const outW = Math.min(totalW, maxWidth);
-    const scale = outW / totalW;
-    canvas.width = Math.round(outW);
-    canvas.height = Math.round(Math.max(120, height * scale + padding * 2));
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    // draw original
-    const ox = padding;
-    const oy = padding;
-    ctx.drawImage(origCanvas, ox, oy, Math.round(origW * scale), Math.round(origH * scale));
-    // draw separator
-    const sepX = ox + Math.round(origW * scale) + padding;
-    ctx.fillStyle = '#f1f5f9';
-    ctx.fillRect(sepX - 1, oy, 2, canvas.height - padding * 2);
-    // draw stego
-    const sx = sepX + padding;
-    ctx.drawImage(stegoCanvas, sx, oy, Math.round(stegoW * scale), Math.round(stegoH * scale));
-    // labels
-    ctx.fillStyle = '#0f172a';
-    ctx.font = '14px Inter, Arial, sans-serif';
-    ctx.fillText('Original', ox + 6, canvas.height - 6);
-    ctx.fillText('Stego', sx + 6, canvas.height - 6);
-}
+ 
 
 // Draw an HTMLImageElement to a canvas by id
 function drawToCanvas(imgElem, canvasId) {
