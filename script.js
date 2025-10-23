@@ -213,13 +213,16 @@ document.getElementById('encryptButton').addEventListener('click', async functio
                         }
                         // enable download buttons
                         document.getElementById('downloadStego').disabled = false;
-                        document.getElementById('downloadHeatmap').disabled = false;
+                        document.getElementById('downloadHeatmap').disabled = false; // repurposed to download diagram
                         document.getElementById('downloadReport').disabled = false;
-                        // show stats
-                        const statsEl = document.getElementById('diffStats');
-                        statsEl.innerHTML = `Perubahan: <strong>${stats.changedPixels}</strong> pixel (${(stats.percentChanged*100).toFixed(3)}%) • Mean diff: <strong>${stats.meanDiff.toFixed(3)}</strong>`;
-                        // store the last stats for download
-                        window.__tinycrypt_last_stats = Object.assign({}, stats, { imageWidth: canvas.width, imageHeight: canvas.height });
+                        // draw diagram showing original vs stego
+                        try {
+                            const origCanvas = document.getElementById('originalCanvas');
+                            const encCanvas = document.getElementById('encryptedCanvas');
+                            if (origCanvas && encCanvas) drawDiagramCanvas(origCanvas, encCanvas);
+                        } catch (e) { console.warn('Diagram draw failed', e); }
+                        // store the last stats for download (kept minimal)
+                        window.__tinycrypt_last_stats = { imageWidth: canvas.width, imageHeight: canvas.height };
                     } catch (e) {
                         console.warn('Diagram generation failed:', e);
                     }
@@ -255,17 +258,16 @@ document.getElementById('downloadStego').addEventListener('click', function() {
 });
 
 document.getElementById('downloadHeatmap').addEventListener('click', function() {
-    const canvas = document.getElementById('diffHeatmap');
-    // create a temp canvas scaled up for visibility if necessary
-    if (!canvas || canvas.width === 0 || canvas.height === 0) { alert('Tidak ada heatmap untuk didownload.'); return; }
+    const canvas = document.getElementById('diagramCanvas');
+    if (!canvas || canvas.width === 0 || canvas.height === 0) { alert('Tidak ada diagram untuk didownload.'); return; }
     try {
         const url = canvas.toDataURL('image/png');
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'heatmap.png';
+        a.download = 'diagram.png';
         a.click();
     } catch (e) {
-        alert('Gagal membuat file heatmap: ' + e.message);
+        alert('Gagal membuat file diagram: ' + e.message);
     }
 });
 
@@ -320,171 +322,42 @@ document.getElementById('decryptButton').addEventListener('click', function() {
     reader.readAsDataURL(imageFile);
 });
 
-// --- Diagram / Diff utilities ---
-function computeDiffAndShowDiagram(origImageData, stegoImageData) {
-    const w = origImageData.width;
-    const h = origImageData.height;
-    const orig = origImageData.data;
-    const st = stegoImageData.data;
-    const diff = new Uint8ClampedArray(w * h); // store intensity diff 0-255
-    const hist = new Uint32Array(256);
-    let sumDiff = 0;
-    let changed = 0;
-    let sumDiffR = 0, sumDiffG = 0, sumDiffB = 0;
-    let changedR = 0, changedG = 0, changedB = 0;
-    for (let px = 0; px < w * h; px++) {
-        const oi = px * 4;
-        // compute grayscale absolute diff per pixel using RGB channels average
-        const origGray = Math.round((orig[oi] + orig[oi+1] + orig[oi+2]) / 3);
-        const stGray = Math.round((st[oi] + st[oi+1] + st[oi+2]) / 3);
-        const d = Math.abs(origGray - stGray);
-        diff[px] = d;
-        hist[d]++;
-        sumDiff += d;
-        if (d !== 0) changed++;
-        // per-channel diffs
-        const dr = Math.abs(orig[oi] - st[oi]);
-        const dg = Math.abs(orig[oi+1] - st[oi+1]);
-        const db = Math.abs(orig[oi+2] - st[oi+2]);
-        sumDiffR += dr; if (dr !== 0) changedR++;
-        sumDiffG += dg; if (dg !== 0) changedG++;
-        sumDiffB += db; if (db !== 0) changedB++;
-    }
-
-    drawHeatmap(diff, w, h);
-    drawHistogram(hist);
-    renderFlowchart();
-    const meanDiff = sumDiff / (w * h);
-    const percentChanged = changed / (w * h);
-    const meanR = sumDiffR / (w * h);
-    const meanG = sumDiffG / (w * h);
-    const meanB = sumDiffB / (w * h);
-    return {
-        changedPixels: changed,
-        percentChanged,
-        meanDiff,
-        perChannel: {
-            R: { changed: changedR, mean: meanR },
-            G: { changed: changedG, mean: meanG },
-            B: { changed: changedB, mean: meanB }
-        }
-    };
-}
-
-function drawHeatmap(diffArray, w, h) {
-    const canvas = document.getElementById('diffHeatmap');
-    // set canvas pixel size to image size but constrained by CSS width
-    canvas.width = w;
-    canvas.height = h;
+// --- Diagram: draw original and stego side-by-side into one canvas ---
+function drawDiagramCanvas(origCanvas, stegoCanvas) {
+    const canvas = document.getElementById('diagramCanvas');
+    if (!canvas) return;
+    // compute target size: fit both images side-by-side within canvas width
+    const maxWidth = 1200; // cap large sizes
+    const padding = 8;
+    const origW = origCanvas.width || origCanvas.naturalWidth || 0;
+    const origH = origCanvas.height || origCanvas.naturalHeight || 0;
+    const stegoW = stegoCanvas.width || stegoCanvas.naturalWidth || 0;
+    const stegoH = stegoCanvas.height || stegoCanvas.naturalHeight || 0;
+    const height = Math.max(origH, stegoH);
+    const totalW = origW + stegoW + padding * 3;
+    const outW = Math.min(totalW, maxWidth);
+    const scale = outW / totalW;
+    canvas.width = Math.round(outW);
+    canvas.height = Math.round(Math.max(120, height * scale + padding * 2));
     const ctx = canvas.getContext('2d');
-    const imgData = ctx.createImageData(w, h);
-    for (let i = 0; i < diffArray.length; i++) {
-        const d = diffArray[i];
-        const idx = i * 4;
-        // map diff to red heatmap: higher diff -> more red
-        imgData.data[idx] = d; // R
-        imgData.data[idx+1] = 0; // G
-        imgData.data[idx+2] = 0; // B
-        imgData.data[idx+3] = 255; // A
-    }
-    ctx.putImageData(imgData, 0, 0);
-    // scale down visually via CSS (browser will handle scaling)
-}
-
-function drawHistogram(hist) {
-    const canvas = document.getElementById('diffHistogram');
-    const ctx = canvas.getContext('2d');
-    // set pixel width equal to 256 for clear bins
-    canvas.width = 256;
-    canvas.height = 80;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    const max = Math.max(...hist);
-    for (let i = 0; i < 256; i++) {
-        const hgt = Math.round((hist[i] / (max || 1)) * canvas.height);
-        ctx.fillStyle = '#e74c3c';
-        ctx.fillRect(i, canvas.height - hgt, 1, hgt);
-    }
-}
-
-function renderFlowchart() {
-    const container = document.getElementById('flowchart');
-    if (!container) return;
-    container.innerHTML = '';
-
-    const SVGN = 'http://www.w3.org/2000/svg';
-    const svg = document.createElementNS(SVGN, 'svg');
-    svg.setAttribute('viewBox', '0 0 800 140');
-    svg.setAttribute('role', 'img');
-    svg.setAttribute('aria-label', 'Flowchart proses enkripsi dan penyisipan');
-
-    const defs = document.createElementNS(SVGN, 'defs');
-    const style = document.createElementNS(SVGN, 'style');
-    style.textContent = `.box { fill:#ffffff; stroke:#0f172a; stroke-width:1; rx:8; }
-    .label { font-family: Inter, Arial, sans-serif; font-size:13px; fill:#0f172a; }
-    .arrow { stroke:#0f172a; stroke-width:2; marker-end: url(#arrowhead); }`;
-    defs.appendChild(style);
-
-    const marker = document.createElementNS(SVGN, 'marker');
-    marker.setAttribute('id', 'arrowhead');
-    marker.setAttribute('markerWidth', '10');
-    marker.setAttribute('markerHeight', '7');
-    marker.setAttribute('refX', '10');
-    marker.setAttribute('refY', '3.5');
-    marker.setAttribute('orient', 'auto-start-reverse');
-    const poly = document.createElementNS(SVGN, 'polygon');
-    poly.setAttribute('points', '0 0, 10 3.5, 0 7');
-    poly.setAttribute('fill', '#0f172a');
-    marker.appendChild(poly);
-    defs.appendChild(marker);
-    svg.appendChild(defs);
-
-    function makeRect(x, y, w, h, cls) {
-        const r = document.createElementNS(SVGN, 'rect');
-        r.setAttribute('x', x);
-        r.setAttribute('y', y);
-        r.setAttribute('width', w);
-        r.setAttribute('height', h);
-        if (cls) r.setAttribute('class', cls);
-        return r;
-    }
-
-    function makeText(x, y, txt, cls) {
-        const t = document.createElementNS(SVGN, 'text');
-        t.setAttribute('x', x);
-        t.setAttribute('y', y);
-        t.setAttribute('text-anchor', 'middle');
-        if (cls) t.setAttribute('class', cls);
-        t.textContent = txt;
-        return t;
-    }
-
-    function makeLine(x1, y1, x2, y2, cls) {
-        const l = document.createElementNS(SVGN, 'line');
-        l.setAttribute('x1', x1);
-        l.setAttribute('y1', y1);
-        l.setAttribute('x2', x2);
-        l.setAttribute('y2', y2);
-        if (cls) l.setAttribute('class', cls);
-        return l;
-    }
-
-    svg.appendChild(makeRect('20', '20', '160', '48', 'box'));
-    svg.appendChild(makeText('100', '50', 'Gambar Asli', 'label'));
-    svg.appendChild(makeRect('220', '20', '160', '48', 'box'));
-    svg.appendChild(makeText('300', '50', 'TEA Enkripsi', 'label'));
-    svg.appendChild(makeRect('420', '20', '160', '48', 'box'));
-    svg.appendChild(makeText('500', '50', 'LSB Embed', 'label'));
-    svg.appendChild(makeRect('620', '20', '160', '48', 'box'));
-    svg.appendChild(makeText('700', '50', 'Gambar Stego', 'label'));
-
-    svg.appendChild(makeLine('180', '44', '220', '44', 'arrow'));
-    svg.appendChild(makeLine('380', '44', '420', '44', 'arrow'));
-    svg.appendChild(makeLine('580', '44', '620', '44', 'arrow'));
-
-    svg.appendChild(makeText('300', '80', 'Pesan → PKCS7 → TEA (blok 64-bit)', 'label'));
-    svg.appendChild(makeText('500', '96', 'Ciphertext (base64) disisipkan ke LSB', 'label'));
-
-    container.appendChild(svg);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    // draw original
+    const ox = padding;
+    const oy = padding;
+    ctx.drawImage(origCanvas, ox, oy, Math.round(origW * scale), Math.round(origH * scale));
+    // draw separator
+    const sepX = ox + Math.round(origW * scale) + padding;
+    ctx.fillStyle = '#f1f5f9';
+    ctx.fillRect(sepX - 1, oy, 2, canvas.height - padding * 2);
+    // draw stego
+    const sx = sepX + padding;
+    ctx.drawImage(stegoCanvas, sx, oy, Math.round(stegoW * scale), Math.round(stegoH * scale));
+    // labels
+    ctx.fillStyle = '#0f172a';
+    ctx.font = '14px Inter, Arial, sans-serif';
+    ctx.fillText('Original', ox + 6, canvas.height - 6);
+    ctx.fillText('Stego', sx + 6, canvas.height - 6);
 }
 
 // Draw an HTMLImageElement to a canvas by id
