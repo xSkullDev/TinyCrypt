@@ -510,7 +510,10 @@ document.getElementById('decryptButton').addEventListener('click', function() {
                     console.warn('Failed to draw decrypt histograms', e);
                 }
                 // compute and show metrics (pass decrypted text for CER)
-                try { computeAndShowMetrics('originalCanvas','decryptInputCanvas',{decryptedText: plain}); } catch(e){ console.warn('metrics compute failed', e); }
+                try { computeAndShowMetrics('originalCanvas','decryptInputCanvas',{decryptedText: plain});
+                    // annotate the last stats to indicate successful visual restoration
+                    try { if (window.__tinycrypt_last_stats) window.__tinycrypt_last_stats.reportMessage = 'Gambar Kembali Seperti Semula'; } catch(e){}
+                } catch(e){ console.warn('metrics compute failed', e); }
                 // enable decrypt download buttons
                 try {
                     const btnOrig = document.getElementById('downloadOriginalDecrypt');
