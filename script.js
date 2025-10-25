@@ -418,6 +418,12 @@ document.getElementById('downloadReport').addEventListener('click', function() {
     // Prefer last stats stored during decrypt/encrypt
     const stats = window.__tinycrypt_last_stats;
     if (!stats) { alert('Tidak ada laporan tersedia. Silakan lakukan enkripsi atau dekripsi terlebih dahulu.'); return; }
+    // If this report follows a decryption, ensure the requested message is present
+    try {
+        if (stats && (stats.decryptedText !== undefined && stats.decryptedText !== null)) {
+            stats.reportMessage = 'Gambar Kembali Seperti Semula';
+        }
+    } catch (e) { /* ignore */ }
     const payload = JSON.stringify(stats, null, 2);
     const blob = new Blob([payload], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
