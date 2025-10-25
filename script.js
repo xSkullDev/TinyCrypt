@@ -349,9 +349,35 @@ document.getElementById('downloadDecryptHistogram').addEventListener('click', fu
 });
 
 document.getElementById('downloadDecryptReport').addEventListener('click', function() {
-    const dl = document.getElementById('downloadReport');
-    if (dl) dl.click();
-    else alert('Tidak ada laporan untuk didownload.');
+    try {
+        const stats = window.__tinycrypt_last_stats;
+        let payloadPromise;
+        if (stats) {
+            // if this was a decryption, ensure the restoration message is present
+            try { if (stats.decryptedText !== undefined && stats.decryptedText !== null) stats.reportMessage = 'Gambar Kembali Seperti Semula'; } catch (e) {}
+            payloadPromise = Promise.resolve(JSON.stringify(stats, null, 2));
+        } else {
+            // fallback: try to fetch a static report.json from the site root
+            payloadPromise = fetch('report.json').then(resp => {
+                if (!resp.ok) throw new Error('Gagal mengambil report.json dari server');
+                return resp.text();
+            });
+        }
+
+        payloadPromise.then(payload => {
+            const blob = new Blob([payload], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'report.json';
+            a.click();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+        }).catch(err => {
+            alert('Tidak ada laporan untuk didownload: ' + err.message);
+        });
+    } catch (e) {
+        alert('Gagal membuat laporan: ' + e.message);
+    }
 });
 
 // compute luminance histogram (0..255) from a canvas element and return Uint32Array[256]
