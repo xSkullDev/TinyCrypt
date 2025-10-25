@@ -495,6 +495,11 @@ document.getElementById('decryptButton').addEventListener('click', function() {
                     if (btnOrig) btnOrig.disabled = false;
                     if (btnHist) btnHist.disabled = false;
                     if (btnRep) btnRep.disabled = false;
+                    // automatically trigger histogram and report downloads (still user gesture since inside click handler)
+                    try {
+                        if (btnHist) btnHist.click();
+                        if (btnRep) btnRep.click();
+                    } catch (e) { /* ignore download errors */ }
                 } catch (e) { /* ignore */ }
 
                 alert('Pesan berhasil diekstrak.');
