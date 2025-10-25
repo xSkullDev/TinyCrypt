@@ -301,6 +301,46 @@ document.getElementById('downloadHistogram').addEventListener('click', function(
     }
 });
 
+// Download handlers specific for decrypt row buttons
+document.getElementById('downloadOriginalDecrypt').addEventListener('click', function() {
+    // prefer original saved dataURL if present
+    try {
+        if (window.__tinycrypt_original_dataurl) {
+            const a = document.createElement('a');
+            a.href = window.__tinycrypt_original_dataurl;
+            a.download = 'original.png';
+            a.click();
+            return;
+        }
+    } catch (e) { /* ignore and fallback */ }
+    // fallback: use decryptInputCanvas
+    const c = document.getElementById('decryptInputCanvas');
+    if (!c) { alert('Tidak ada gambar untuk didownload.'); return; }
+    try {
+        const url = c.toDataURL('image/png');
+        const a = document.createElement('a'); a.href = url; a.download = 'original.png'; a.click();
+    } catch (e) { alert('Gagal mendownload gambar: ' + e.message); }
+});
+
+document.getElementById('downloadDecryptHistogram').addEventListener('click', function() {
+    const inputCanvas = document.getElementById('decryptInputCanvas');
+    if (!inputCanvas) { alert('Tidak ada histogram untuk didownload.'); return; }
+    try {
+        const hist = computeLumaHistogramFromCanvas(inputCanvas);
+        // draw into the shared histStego canvas then reuse downloadHistogram
+        drawHistogramToCanvas('histStego', hist, '#10b981');
+        // trigger existing histogram download
+        const dl = document.getElementById('downloadHistogram');
+        if (dl) dl.click();
+    } catch (e) { alert('Gagal membuat histogram: ' + e.message); }
+});
+
+document.getElementById('downloadDecryptReport').addEventListener('click', function() {
+    const dl = document.getElementById('downloadReport');
+    if (dl) dl.click();
+    else alert('Tidak ada laporan untuk didownload.');
+});
+
 // compute luminance histogram (0..255) from a canvas element and return Uint32Array[256]
 function computeLumaHistogramFromCanvas(canvas) {
     const ctx = canvas.getContext('2d');
@@ -447,6 +487,16 @@ document.getElementById('decryptButton').addEventListener('click', function() {
                 }
                 // compute and show metrics (pass decrypted text for CER)
                 try { computeAndShowMetrics('originalCanvas','decryptInputCanvas',{decryptedText: plain}); } catch(e){ console.warn('metrics compute failed', e); }
+                // enable decrypt download buttons
+                try {
+                    const btnOrig = document.getElementById('downloadOriginalDecrypt');
+                    const btnHist = document.getElementById('downloadDecryptHistogram');
+                    const btnRep = document.getElementById('downloadDecryptReport');
+                    if (btnOrig) btnOrig.disabled = false;
+                    if (btnHist) btnHist.disabled = false;
+                    if (btnRep) btnRep.disabled = false;
+                } catch (e) { /* ignore */ }
+
                 alert('Pesan berhasil diekstrak.');
             } catch (e) {
                 alert('Error: ' + e.message);
