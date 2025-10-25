@@ -72,7 +72,7 @@ button:hover { filter:brightness(0.95); }
 
 .images { display:block; gap:18px; margin-top:18px }
 .image-row { display:flex; gap:18px; }
-.img-col { flex:1; text-align:center }
+.img-col { flex:1 1 320px; text-align:center }
 .img-col h4 { margin:6px 0; color:#0f172a }
 .img-col img { width:100%; max-height:360px; object-fit:contain; border:1px solid #f1f5f9; border-radius:8px; background:#ffffff }
 
@@ -95,7 +95,7 @@ button:hover { filter:brightness(0.95); }
 #diagram h3 { margin:0 0 8px 0; color:#0f172a }
 
 .hist-row { display:flex; gap:12px }
-.hist-col { flex:1; text-align:center }
+.hist-col { flex:1 1 200px; text-align:center }
 .hist-col h4 { margin:6px 0 }
 #histOriginal, #histStego {
     width: 100%;
@@ -103,6 +103,28 @@ button:hover { filter:brightness(0.95); }
     background: #fff;
     border: 1px solid #eef2f6;
     display:block;
+}
+
+/* Responsive rules */
+@media (max-width: 900px) {
+    .container { padding: 18px; }
+    .btn-row { flex-direction: column; }
+    .image-row { flex-direction: column; }
+    .hist-row { flex-direction: column; }
+    .download-row { flex-direction: column; }
+    .download-row button { width: 100%; }
+    .img-col { min-width: 0; }
+    .img-col canvas { max-height: none; height: auto; }
+    #histOriginal, #histStego { height: 120px; }
+}
+
+/* Small devices (phones) - ensure comfortable sizing */
+@media (max-width: 480px) {
+    .container { padding: 12px; }
+    h1 { font-size: 20px; }
+    h2 { font-size: 16px; }
+    .img-col canvas { border-radius: 6px; }
+    #metrics table { font-size: 12px; }
 }
 
 #metrics { border-top:1px dashed #e6edf3; padding-top:12px; }
