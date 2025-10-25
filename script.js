@@ -217,6 +217,8 @@ document.getElementById('encryptButton').addEventListener('click', async functio
                 // fill metadata for original and encrypted
                 setImageMeta('metaOriginal', img.width, img.height, imageFileSize(imageFile));
                 setImageMeta('metaEncrypted', canvas.width, canvas.height, dataUrlSize(encDataUrl));
+                // store original image dataURL in memory for later restoration on decrypt
+                try { window.__tinycrypt_original_dataurl = ev.target.result; } catch (e) { /* ignore */ }
                         // compute and show diagram/heatmap/histogram
                         try {
                             // prepare hidden canvas for download using stego data (full resolution)
@@ -399,6 +401,11 @@ document.getElementById('decryptButton').addEventListener('click', function() {
                 setImageMeta('metaDecrypted', img.width, img.height, imageFileSize(imageFile));
                 // show message in textarea
                 document.getElementById('messageInput').value = plain;
+                // display decrypted key & message in decryptInfo
+                const info = document.getElementById('decryptInfo');
+                if (info) {
+                    info.innerHTML = `<small>Kunci: <strong>${escapeHtml(key)}</strong></small><br><small>Pesan: <strong>${escapeHtml(plain)}</strong></small>`;
+                }
                 // reveal decrypt row
                 const decryptRow = document.getElementById('decryptRow');
                 if (decryptRow) decryptRow.style.display = 'flex';
@@ -436,6 +443,14 @@ function drawToCanvasDataUrl(dataUrl, canvasId) {
     img.onload = function() { drawToCanvas(img, canvasId); };
     img.onerror = function(e) { console.warn('drawToCanvasDataUrl failed to load image', e); };
     img.src = dataUrl;
+}
+
+// small helper to escape HTML when inserting into DOM
+function escapeHtml(s) {
+    if (!s) return '';
+    return s.replace(/[&<>"'`]/g, function (c) {
+        return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','`':'&#96;'}[c];
+    });
 }
 
 function imageFileSize(file) {
