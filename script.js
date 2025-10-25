@@ -288,6 +288,16 @@ document.getElementById('downloadStego').addEventListener('click', function() {
 });
 
 document.getElementById('downloadHistogram').addEventListener('click', function() {
+    // Prefer the last-computed histogram dataURL (set during encrypt/decrypt)
+    try {
+        if (window.__tinycrypt_last_histogram_dataurl) {
+            const a = document.createElement('a');
+            a.href = window.__tinycrypt_last_histogram_dataurl;
+            a.download = 'histogram.png';
+            a.click();
+            return;
+        }
+    } catch (e) { /* fallback */ }
     const canvas = document.getElementById('histStego');
     if (!canvas || canvas.width === 0 || canvas.height === 0) { alert('Tidak ada histogram untuk didownload.'); return; }
     try {
@@ -323,15 +333,18 @@ document.getElementById('downloadOriginalDecrypt').addEventListener('click', fun
 });
 
 document.getElementById('downloadDecryptHistogram').addEventListener('click', function() {
-    const inputCanvas = document.getElementById('decryptInputCanvas');
-    if (!inputCanvas) { alert('Tidak ada histogram untuk didownload.'); return; }
     try {
+        // Prefer stored histogram produced at decrypt time
+        if (window.__tinycrypt_last_histogram_dataurl) {
+            const a = document.createElement('a'); a.href = window.__tinycrypt_last_histogram_dataurl; a.download = 'histogram.png'; a.click(); return;
+        }
+        const inputCanvas = document.getElementById('decryptInputCanvas');
+        if (!inputCanvas) { alert('Tidak ada histogram untuk didownload.'); return; }
         const hist = computeLumaHistogramFromCanvas(inputCanvas);
-        // draw into the shared histStego canvas then reuse downloadHistogram
         drawHistogramToCanvas('histStego', hist, '#10b981');
-        // trigger existing histogram download
-        const dl = document.getElementById('downloadHistogram');
-        if (dl) dl.click();
+        // store and download
+        try { const hs = document.getElementById('histStego'); if (hs) { const url = hs.toDataURL('image/png'); const a = document.createElement('a'); a.href = url; a.download = 'histogram.png'; a.click(); window.__tinycrypt_last_histogram_dataurl = url; } }
+        catch(e){ alert('Gagal membuat histogram: ' + e.message); }
     } catch (e) { alert('Gagal membuat histogram: ' + e.message); }
 });
 
@@ -392,11 +405,19 @@ function drawBothHistograms(origCanvas, stegoCanvas) {
     const histS = computeLumaHistogramFromCanvas(tmpS);
     drawHistogramToCanvas('histOriginal', histO, '#2563eb');
     drawHistogramToCanvas('histStego', histS, '#10b981');
+    // store a snapshot of the last histogram (data URL) for immediate download
+    try {
+        const histEl = document.getElementById('histStego');
+        if (histEl && histEl.width > 0 && histEl.height > 0) {
+            window.__tinycrypt_last_histogram_dataurl = histEl.toDataURL('image/png');
+        }
+    } catch (e) { /* ignore */ }
 }
 
 document.getElementById('downloadReport').addEventListener('click', function() {
+    // Prefer last stats stored during decrypt/encrypt
     const stats = window.__tinycrypt_last_stats;
-    if (!stats) { alert('Tidak ada laporan tersedia. Silakan lakukan enkripsi terlebih dahulu.'); return; }
+    if (!stats) { alert('Tidak ada laporan tersedia. Silakan lakukan enkripsi atau dekripsi terlebih dahulu.'); return; }
     const payload = JSON.stringify(stats, null, 2);
     const blob = new Blob([payload], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -404,7 +425,7 @@ document.getElementById('downloadReport').addEventListener('click', function() {
     a.href = url;
     a.download = 'stego_report.json';
     a.click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
 });
 
 document.getElementById('decryptButton').addEventListener('click', function() {
@@ -472,6 +493,8 @@ document.getElementById('decryptButton').addEventListener('click', function() {
                             tmp.getContext('2d').drawImage(tmpImg, 0, 0);
                             const histOrig = computeLumaHistogramFromCanvas(tmp);
                             drawHistogramToCanvas('histStego', histOrig, '#10b981');
+                                // store histogram dataURL for immediate download
+                                try { const hs = document.getElementById('histStego'); if (hs) window.__tinycrypt_last_histogram_dataurl = hs.toDataURL('image/png'); } catch(e){}
                         };
                         tmpImg.src = window.__tinycrypt_original_dataurl;
                     } else {
@@ -480,6 +503,7 @@ document.getElementById('decryptButton').addEventListener('click', function() {
                         if (decCanvas2) {
                             const histOrig = computeLumaHistogramFromCanvas(decCanvas2);
                             drawHistogramToCanvas('histStego', histOrig, '#10b981');
+                                try { const hs2 = document.getElementById('histStego'); if (hs2) window.__tinycrypt_last_histogram_dataurl = hs2.toDataURL('image/png'); } catch(e){}
                         }
                     }
                 } catch (e) {
@@ -495,11 +519,6 @@ document.getElementById('decryptButton').addEventListener('click', function() {
                     if (btnOrig) btnOrig.disabled = false;
                     if (btnHist) btnHist.disabled = false;
                     if (btnRep) btnRep.disabled = false;
-                    // automatically trigger histogram and report downloads (still user gesture since inside click handler)
-                    try {
-                        if (btnHist) btnHist.click();
-                        if (btnRep) btnRep.click();
-                    } catch (e) { /* ignore download errors */ }
                 } catch (e) { /* ignore */ }
 
                 alert('Pesan berhasil diekstrak.');
