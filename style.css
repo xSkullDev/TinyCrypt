@@ -105,5 +105,12 @@ button:hover { filter:brightness(0.95); }
     display:block;
 }
 
+#metrics { border-top:1px dashed #e6edf3; padding-top:12px; }
+#metrics h3 { margin:6px 0 12px 0 }
+#metrics table { width:100%; border-collapse: collapse; font-size:13px; }
+#metrics th, #metrics td { text-align:left; padding:6px 8px; border-bottom:1px solid #f1f5f9 }
+#metrics th { width:30%; color:#0f172a }
+#metrics .na { color:#9ca3af }
+
 /* buttons disabled state */
 button:disabled { opacity: 0.5; cursor: not-allowed }

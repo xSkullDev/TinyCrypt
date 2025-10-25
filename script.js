@@ -217,10 +217,12 @@ document.getElementById('encryptButton').addEventListener('click', async functio
                 // fill metadata for original and encrypted
                 setImageMeta('metaOriginal', img.width, img.height, imageFileSize(imageFile));
                 setImageMeta('metaEncrypted', canvas.width, canvas.height, dataUrlSize(encDataUrl));
-                // store original image dataURL in memory for later restoration on decrypt
-                try { window.__tinycrypt_original_dataurl = ev.target.result; } catch (e) { /* ignore */ }
-                        // compute and show diagram/heatmap/histogram
-                        try {
+        // store original image dataURL in memory for later restoration on decrypt
+        try { window.__tinycrypt_original_dataurl = ev.target.result; } catch (e) { /* ignore */ }
+        // store original plaintext so CER can be computed later
+        try { window.__tinycrypt_last_plaintext = message || ''; } catch (e) { /* ignore */ }
+            // compute and show diagram/heatmap/histogram
+            try {
                             // prepare hidden canvas for download using stego data (full resolution)
                             const hidden = document.getElementById('hiddenStegoCanvas');
                             if (hidden) {
@@ -249,6 +251,8 @@ document.getElementById('encryptButton').addEventListener('click', async functio
                             } catch (e) { console.warn('Histogram draw failed', e); }
                             // store minimal metadata
                             window.__tinycrypt_last_stats = { imageWidth: canvas.width, imageHeight: canvas.height };
+                            // compute and display metrics (image & message)
+                            try { computeAndShowMetrics('originalCanvas','encryptedCanvas'); } catch (e) { console.warn('metrics compute failed', e); }
                         } catch (e) {
                             console.warn('Histogram generation failed:', e);
                         }
@@ -441,6 +445,8 @@ document.getElementById('decryptButton').addEventListener('click', function() {
                 } catch (e) {
                     console.warn('Failed to draw decrypt histograms', e);
                 }
+                // compute and show metrics (pass decrypted text for CER)
+                try { computeAndShowMetrics('originalCanvas','decryptInputCanvas',{decryptedText: plain}); } catch(e){ console.warn('metrics compute failed', e); }
                 alert('Pesan berhasil diekstrak.');
             } catch (e) {
                 alert('Error: ' + e.message);
@@ -509,3 +515,180 @@ function setImageMeta(elementId, width, height, byteSize) {
     const kb = (byteSize / 1024).toFixed(1);
     el.innerHTML = `<small>Ukuran: ${width}×${height}px • ${kb} KB</small>`;
 }
+
+// ----------------- Image/Text Metrics -----------------
+function getImageDataFromCanvasId(id) {
+    const c = document.getElementById(id);
+    if (!c || !c.width || !c.height) return null;
+    const ctx = c.getContext('2d');
+    try { return ctx.getImageData(0,0,c.width,c.height); } catch(e) { return null; }
+}
+
+function bitCount(x) {
+    // Brian Kernighan's method
+    let cnt = 0;
+    while (x) { x &= (x - 1); cnt++; }
+    return cnt;
+}
+
+function computeEntropyFromLuma(lumaArray) {
+    const hist = new Uint32Array(256);
+    for (let i = 0; i < lumaArray.length; i++) hist[lumaArray[i]]++;
+    const total = lumaArray.length;
+    let ent = 0;
+    for (let i = 0; i < 256; i++) {
+        if (hist[i] === 0) continue;
+        const p = hist[i] / total;
+        ent -= p * Math.log2(p);
+    }
+    return ent;
+}
+
+function computeMetricsBetweenCanvases(idA, idB) {
+    const dA = getImageDataFromCanvasId(idA);
+    const dB = getImageDataFromCanvasId(idB);
+    if (!dA || !dB) return null;
+    if (dA.width !== dB.width || dA.height !== dB.height) {
+        // scale smaller canvas to larger using temp canvas
+        // create temp canvases and draw scaled versions so sizes match
+        const tmpA = document.createElement('canvas'); tmpA.width = Math.max(dA.width,dB.width); tmpA.height = Math.max(dA.height,dB.height);
+        const tmpB = document.createElement('canvas'); tmpB.width = tmpA.width; tmpB.height = tmpA.height;
+        const ca = document.getElementById(idA); const cb = document.getElementById(idB);
+        tmpA.getContext('2d').drawImage(ca, 0, 0, tmpA.width, tmpA.height);
+        tmpB.getContext('2d').drawImage(cb, 0, 0, tmpB.width, tmpB.height);
+        return computeMetricsBetweenCanvasesFromImageData(tmpA.getContext('2d').getImageData(0,0,tmpA.width,tmpA.height), tmpB.getContext('2d').getImageData(0,0,tmpB.width,tmpB.height));
+    }
+    return computeMetricsBetweenCanvasesFromImageData(dA, dB);
+}
+
+function computeMetricsBetweenCanvasesFromImageData(imgA, imgB) {
+    const a = imgA.data;
+    const b = imgB.data;
+    const w = imgA.width, h = imgA.height;
+    const totalPixels = w * h;
+    const totalChannels = totalPixels * 3; // RGB only
+
+    let bitDiffs = 0;
+    let npcrCount = 0;
+    let sumAbs = 0;
+    let sumSq = 0;
+    let sumA2 = 0, sumB2 = 0, sumAB = 0;
+
+    const lumaA = new Uint8Array(totalPixels);
+    const lumaB = new Uint8Array(totalPixels);
+
+    for (let p = 0, pxIdx = 0; p < a.length; p += 4, pxIdx++) {
+        const rA = a[p], gA = a[p+1], bA = a[p+2];
+        const rB = b[p], gB = b[p+1], bB = b[p+2];
+        // BER: count bit differences across R,G,B
+        bitDiffs += bitCount((rA ^ rB) & 0xFF);
+        bitDiffs += bitCount((gA ^ gB) & 0xFF);
+        bitDiffs += bitCount((bA ^ bB) & 0xFF);
+
+        // NPCR: pixel changed?
+        if (rA !== rB || gA !== gB || bA !== bB) npcrCount++;
+
+        // AE, MSE, UACI components
+        const daR = Math.abs(rA - rB), daG = Math.abs(gA - gB), daB = Math.abs(bA - bB);
+        sumAbs += daR + daG + daB;
+        sumSq += (rA - rB)*(rA - rB) + (gA - gB)*(gA - gB) + (bA - bB)*(bA - bB);
+
+        // for NC/NCC use luminance
+        const lA = Math.round(0.2126*rA + 0.7152*gA + 0.0722*bA);
+        const lB = Math.round(0.2126*rB + 0.7152*gB + 0.0722*bB);
+        lumaA[pxIdx] = lA; lumaB[pxIdx] = lB;
+        sumA2 += lA * lA;
+        sumB2 += lB * lB;
+        sumAB += lA * lB;
+    }
+
+    const BER = bitDiffs / (totalChannels * 8); // bits different / total bits
+    const NPCR = (npcrCount / totalPixels) * 100; // percent
+    const AE = sumAbs / totalChannels;
+    const MSE = sumSq / totalChannels;
+    const PSNR = (MSE === 0) ? Infinity : (10 * Math.log10((255*255) / MSE));
+    const UACI = (sumAbs / (totalPixels * 3 * 255)) * 100;
+    const NC = (Math.sqrt(sumAB) && (Math.sqrt(sumA2)*Math.sqrt(sumB2))) ? (sumAB / (Math.sqrt(sumA2) * Math.sqrt(sumB2))) : 0;
+    // Pearson correlation (NCC) on luminance
+    let meanA = 0, meanB = 0;
+    for (let i=0;i<lumaA.length;i++){ meanA += lumaA[i]; meanB += lumaB[i]; }
+    meanA /= lumaA.length; meanB /= lumaB.length;
+    let cov = 0, varA = 0, varB = 0;
+    for (let i=0;i<lumaA.length;i++){ const da = lumaA[i]-meanA; const db = lumaB[i]-meanB; cov += da*db; varA += da*da; varB += db*db; }
+    const NCC = (varA && varB) ? (cov / Math.sqrt(varA*varB)) : 0;
+
+    const ENT_A = computeEntropyFromLuma(lumaA);
+    const ENT_B = computeEntropyFromLuma(lumaB);
+
+    const NRMSE = Math.sqrt(MSE) / 255;
+
+    return {
+        BER, NPCR, UACI, AE, MSE, PSNR, NC, NCC, ENT_A, ENT_B, NRMSE
+    };
+}
+
+// Levenshtein distance for CER (character error rate)
+function levenshtein(a, b) {
+    if (a === b) return 0;
+    const n = a.length, m = b.length;
+    if (n === 0) return m;
+    if (m === 0) return n;
+    const v0 = new Array(m+1), v1 = new Array(m+1);
+    for (let j=0;j<=m;j++) v0[j]=j;
+    for (let i=0;i<n;i++){
+        v1[0]=i+1;
+        for (let j=0;j<m;j++){
+            const cost = a[i] === b[j] ? 0 : 1;
+            v1[j+1] = Math.min(v1[j] + 1, v0[j+1] + 1, v0[j] + cost);
+        }
+        for (let j=0;j<=m;j++) v0[j]=v1[j];
+    }
+    return v1[m];
+}
+
+function computeAndShowMetrics(origCanvasId = 'originalCanvas', stegoCanvasId = 'encryptedCanvas', extra) {
+    const metricsContent = document.getElementById('metricsContent');
+    if (!metricsContent) return;
+    const metrics = computeMetricsBetweenCanvases(origCanvasId, stegoCanvasId);
+    const rows = [];
+    if (!metrics) {
+        metricsContent.innerHTML = '<p class="na">Tidak dapat menghitung metrik: pastikan kedua gambar tersedia dan berukuran sama.</p>';
+        return;
+    }
+
+    // compute CER if possible
+    let CER = null;
+    const origMsg = window.__tinycrypt_last_plaintext || '';
+    const decMsg = (extra && extra.decryptedText) ? extra.decryptedText : (document.getElementById('messageInput') ? document.getElementById('messageInput').value : '');
+    if (origMsg && decMsg !== null) {
+        const d = levenshtein(origMsg, decMsg);
+        CER = (origMsg.length === 0) ? (d === 0 ? 0 : 1) : (d / origMsg.length);
+    }
+
+    rows.push(['BER (bit error rate)', (metrics.BER*100).toFixed(4) + ' %']);
+    rows.push(['NPCR (pixel change rate)', metrics.NPCR.toFixed(4) + ' %']);
+    rows.push(['UACI', metrics.UACI.toFixed(4) + ' %']);
+    rows.push(['AE (avg abs error)', metrics.AE.toFixed(4)]);
+    rows.push(['MSE', metrics.MSE.toFixed(4)]);
+    rows.push(['PSNR', (metrics.PSNR === Infinity ? 'Infinity' : metrics.PSNR.toFixed(3) + ' dB')]);
+    rows.push(['NRMSE', metrics.NRMSE.toFixed(6)]);
+    rows.push(['NC (normalized correlation)', metrics.NC.toFixed(6)]);
+    rows.push(['NCC (pearson on luminance)', metrics.NCC.toFixed(6)]);
+    rows.push(['Entropy (Asli)', metrics.ENT_A.toFixed(4)]);
+    rows.push(['Entropy (Stego)', metrics.ENT_B.toFixed(4)]);
+    if (CER !== null) rows.push(['CER (character error rate)', (CER*100).toFixed(3) + ' %']);
+
+    // only show metrics that can be computed client-side (no model dependencies)
+
+    // Build table HTML
+    let html = '<table><tbody>';
+    for (const r of rows) {
+        html += `<tr><th>${r[0]}</th><td>${r[1]}</td></tr>`;
+    }
+    html += '</tbody></table>';
+    metricsContent.innerHTML = html;
+
+    // store last stats for download/report
+    window.__tinycrypt_last_stats = Object.assign({}, metrics, { CER: CER, originalMessage: origMsg || null, decryptedText: decMsg || null });
+}
+
