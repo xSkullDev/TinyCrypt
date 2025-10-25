@@ -409,6 +409,38 @@ document.getElementById('decryptButton').addEventListener('click', function() {
                 // reveal decrypt row
                 const decryptRow = document.getElementById('decryptRow');
                 if (decryptRow) decryptRow.style.display = 'flex';
+                // --- draw histograms for decrypt: input image (left) and original (right) ---
+                try {
+                    const inputCanvas = document.getElementById('decryptInputCanvas');
+                    if (inputCanvas) {
+                        const histIn = computeLumaHistogramFromCanvas(inputCanvas);
+                        drawHistogramToCanvas('histOriginal', histIn, '#2563eb');
+                    }
+
+                    // Prefer stored original dataURL saved during encryption for accurate original histogram
+                    if (window.__tinycrypt_original_dataurl) {
+                        const tmpImg = new Image();
+                        tmpImg.crossOrigin = 'anonymous';
+                        tmpImg.onload = function() {
+                            const tmp = document.createElement('canvas');
+                            tmp.width = tmpImg.naturalWidth || tmpImg.width;
+                            tmp.height = tmpImg.naturalHeight || tmpImg.height;
+                            tmp.getContext('2d').drawImage(tmpImg, 0, 0);
+                            const histOrig = computeLumaHistogramFromCanvas(tmp);
+                            drawHistogramToCanvas('histStego', histOrig, '#10b981');
+                        };
+                        tmpImg.src = window.__tinycrypt_original_dataurl;
+                    } else {
+                        // fallback: use decrypted canvas (visual) as approximation of original
+                        const decCanvas2 = document.getElementById('decryptedCanvas');
+                        if (decCanvas2) {
+                            const histOrig = computeLumaHistogramFromCanvas(decCanvas2);
+                            drawHistogramToCanvas('histStego', histOrig, '#10b981');
+                        }
+                    }
+                } catch (e) {
+                    console.warn('Failed to draw decrypt histograms', e);
+                }
                 alert('Pesan berhasil diekstrak.');
             } catch (e) {
                 alert('Error: ' + e.message);
