@@ -763,7 +763,6 @@ function computeAndShowMetrics(origCanvasId = 'originalCanvas', stegoCanvasId = 
         return;
     }
 
-    // compute CER if possible
     let CER = null;
     const origMsg = window.__tinycrypt_last_plaintext || '';
     const decMsg = (extra && extra.decryptedText) ? extra.decryptedText : (document.getElementById('messageInput') ? document.getElementById('messageInput').value : '');
